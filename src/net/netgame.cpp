@@ -1,0 +1,88 @@
+// CNetGame. Observed strings/behavior in FUN_1000b290/1000af40/10008630/
+// 1000aa60/1000a9d0/10008ad0/1000a230/10009df0. See header for mapping.
+#include "samp/net/netgame.h"
+#include "samp/net/packets.h"
+#include "samp/net/bitstream.h"
+#include "samp/common.h"
+#include <windows.h>
+#include <cstring>
+#include <cstdio>
+
+namespace samp { namespace net {
+
+CNetGame::CNetGame() { strncpy(nick_, "Player", sizeof nick_ - 1); }
+
+void CNetGame::SetServer(const char* host, uint16_t port, const char* pw) {
+  if (host) strncpy(host_, host, sizeof host_ - 1);
+  port_ = port ? port : 7777;
+  if (pw) strncpy(password_, pw, sizeof password_ - 1);
+}
+
+void CNetGame::SendConnectRetry() { // FUN_10008630: 3s timer
+  uint32_t now = GetTickCount();
+  if (now - lastTick_ > 3000) {
+    char msg[128];
+    snprintf(msg, sizeof msg, "Connecting to %s:%d...", host_, port_);
+    peer_.Connect(host_, port_, password_[0] ? password_ : nullptr, (int)strlen(password_));
+    lastTick_ = now;
+    state_ = NetState::Connecting;
+  }
+}
+
+void CNetGame::OnAccept_Join() { // FUN_1000aa60
+  BitStream bs;
+  bs.WriteU32(0xFDE);            // observed magic
+  bs.WriteStr(nick_);
+  bs.WriteU32(0);                // client-hash placeholder (FUN_1005fa60 TODO(rea))
+  bs.WriteStr(kVersion);         // "0.3.DL-R1"
+  peer_.Send(bs, 1, 8, 0);       // priority=1, reliability=8, channel=0
+  state_ = NetState::Joined;
+}
+
+void CNetGame::OnLost() { // FUN_1000a9d0
+  peer_.Disconnect(0, 0);
+  state_ = NetState::WaitConnect;
+}
+
+void CNetGame::OnServerClosed() { // FUN_10008ad0
+  peer_.Disconnect(2000, 0);
+}
+
+void CNetGame::ResetWorld() { // FUN_1000a230
+  state_ = NetState::Restarting;
+}
+
+void CNetGame::DispatchIncoming() { // FUN_1000af40 (abridged)
+  for (;;) {
+    RecvPacket* pkt = peer_.Receive();
+    if (!pkt) break;
+    uint8_t id = pkt->data ? pkt->data[0] : 0;
+    if (id == '(' && pkt->length > 5) id = pkt->data[5]; // timestamped prefix
+    switch (id) {
+      case (uint8_t)ConnEvent::Accepted: OnAccept_Join(); break;
+      case (uint8_t)ConnEvent::Lost: OnLost(); break;
+      case (uint8_t)ConnEvent::ServerClosed: OnServerClosed(); break;
+      case (uint8_t)ConnEvent::NoResponse:
+      case (uint8_t)ConnEvent::ServerFull:
+        state_ = NetState::WaitConnect; break;
+      case (uint8_t)ConnEvent::BadPassword:
+        peer_.Disconnect(0, 0); state_ = NetState::WaitConnect; break;
+      case (uint8_t)ConnEvent::Banned:
+      case (uint8_t)ConnEvent::EncryptFail:
+        state_ = NetState::WaitConnect; break;
+      default:
+        // Sync IDs 200-212 handled by game pools (TODO(rea): full BitStream parse
+        // per FUN_1000a6f0/10009930/1000a420/10009730/...).
+        (void)PacketIdToString(id);
+        break;
+    }
+    peer_.Deallocate(pkt);
+  }
+}
+
+void CNetGame::Pump() { // FUN_1000b290
+  if (state_ == NetState::WaitConnect) SendConnectRetry();
+  else DispatchIncoming();
+}
+
+}} // namespace
