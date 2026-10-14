@@ -1,6 +1,7 @@
 // BitStream. Observed layout: inline buf +0x11 cap 0x100, SetData copies when
 // len>=0x100 else inline; Reset sets cap 0x800 bits; readers/writers bit-exact.
 #include "samp/net/bitstream.h"
+#include "samp/net/compressed_vector.h"
 #include <cstring>
 #include <cstdlib>
 
@@ -94,5 +95,35 @@ void BitStream::WriteBytes(const void* src, size_t n) { // FUN_1001fb50
 void BitStream::WriteU16(uint16_t v) { uint8_t b[2] = {(uint8_t)v, (uint8_t)(v >> 8)}; WriteBytes(b, 2); }
 void BitStream::WriteU32(uint32_t v) { uint8_t b[4] = {(uint8_t)v, (uint8_t)(v >> 8), (uint8_t)(v >> 16), (uint8_t)(v >> 24)}; WriteBytes(b, 4); }
 void BitStream::WriteStr(const char* s) { WriteBytes(s, strlen(s)); }
+
+void BitStream::WriteCompressedUnit(float v) {
+  if (v < -1.0f) v = -1.0f;
+  if (v > 1.0f) v = 1.0f;
+  WriteU16((uint16_t)((v + 1.0f) * 32767.5f));
+}
+
+bool BitStream::ReadCompressedUnit(float& v) {
+  uint16_t q = 0;
+  if (!ReadU16(q)) return false;
+  v = (float)q / 32767.5f - 1.0f;
+  return true;
+}
+
+void BitStream::WriteCompVector(float mag, float x, float y, float z) {
+  WriteBytes(&mag, 4);
+  if (mag > net::kVecMagnitudeEpsilon) {
+    WriteCompressedUnit(x);
+    WriteCompressedUnit(y);
+    WriteCompressedUnit(z);
+  }
+}
+
+bool BitStream::ReadCompVector(float& mag, float out[3]) {
+  if (!ReadBytes(&mag, 4)) return false;
+  if (mag > net::kVecMagnitudeEpsilon)
+    return ReadCompressedUnit(out[0]) && ReadCompressedUnit(out[1]) && ReadCompressedUnit(out[2]);
+  out[0] = out[1] = out[2] = 0.0f;
+  return true;
+}
 
 }} // namespace

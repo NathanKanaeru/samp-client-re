@@ -41,6 +41,8 @@ set(SAMP_SOURCES
   src/net/endpoint.cpp
   src/net/socket_compat.cpp
   src/net/bootstrap.cpp
+  src/net/sync.cpp
+  src/net/query.cpp
   src/net/raknet_adapter.cpp
   src/game/game.cpp
   src/game/pools.cpp

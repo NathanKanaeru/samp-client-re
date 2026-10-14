@@ -42,6 +42,8 @@
 #include "samp/net/socket_compat.h"
 #include "samp/net/bootstrap.h"
 #include "samp/net/raknet_adapter.h"
+#include "samp/net/sync.h"
+#include "samp/net/query.h"
 #include <vector>
 
 int main() {
@@ -415,6 +417,102 @@ int main() {
     assert(net::BootstrapDestroy(&bm) == 0 && !bm.initialized);
     assert(net::RakAdapterAvailable() == false); // no submodule yet
     WSACleanup();
+  }
+
+  // compressed unit wire format (Knogle/RakNet BitStream.h:907-915,1124-1129)
+  {
+    net::BitStream b1;
+    b1.WriteCompressedUnit(-1.0f);
+    b1.WriteCompressedUnit(1.0f);
+    b1.WriteCompressedUnit(0.0f);
+    b1.WriteCompressedUnit(5.0f); // clamped to 1
+    net::BitStream r1;
+    r1.SetData(b1.Data(), b1.BitsUsed() / 8, true);
+    float v = 99;
+    assert(r1.ReadCompressedUnit(v) && v > -1.001f && v < -0.999f);
+    assert(r1.ReadCompressedUnit(v) && v > 0.999f && v < 1.001f);
+    assert(r1.ReadCompressedUnit(v) && v > -0.001f && v < 0.001f);
+    assert(r1.ReadCompressedUnit(v) && v > 0.999f); // clamped
+    // vector gate: zero-mag writes no direction bytes
+    net::BitStream b2;
+    b2.WriteCompVector(0.0f, 9, 9, 9);
+    assert(b2.BitsUsed() == 32u);
+    net::BitStream r2;
+    r2.SetData(b2.Data(), 4, true);
+    float m = -1, o[3] = {9, 9, 9};
+    assert(r2.ReadCompVector(m, o) && m == 0.0f && o[0] == 0 && o[1] == 0 && o[2] == 0);
+  }
+
+  // sync codecs round-trip (field order per shared.h)
+  {
+    net::OnFootSync a;
+    a.lr = 128; a.keys = 0xFF; a.px = 1.5f; a.rot = 90; a.health = 88;
+    a.mx = 0.5f; a.surfVehicle = 12;
+    net::BitStream bs;
+    net::EncodeOnFoot(bs, a);
+    net::BitStream rd;
+    rd.SetData(bs.Data(), bs.BitsUsed() / 8, true);
+    net::OnFootSync b;
+    assert(net::DecodeOnFoot(rd, b));
+    assert(b.lr == 128 && b.keys == 0xFF && b.px == 1.5f && b.rot == 90);
+    assert(b.health == 88 && b.mx == 0.5f && b.surfVehicle == 12);
+
+    net::AimSync am;
+    am.camMode = 4; am.fx = 1; am.aimZ = 0.5f; am.camExtZoom = 63; am.weaponState = 2; am.aspect = 1;
+    net::BitStream bs2;
+    net::EncodeAim(bs2, am);
+    // 1+24+4+1+1 = 31 bytes (AIM_SYNC_DATA size=31)
+    assert(bs2.BitsUsed() == 31u * 8u);
+    net::BitStream rd2;
+    rd2.SetData(bs2.Data(), 31, true);
+    net::AimSync am2;
+    assert(net::DecodeAim(rd2, am2));
+    assert(am2.camMode == 4 && am2.fx == 1 && am2.aimZ == 0.5f);
+    assert(am2.camExtZoom == 63 && am2.weaponState == 2 && am2.aspect == 1);
+
+    net::InCarSync ic;
+    ic.vehicle = 7; ic.keys = 32; ic.dir[0] = 1.0f; ic.px = 10; ic.carHealth = 900;
+    ic.tires[0] = 1; ic.trailer = 3; ic.hydraAngle = 45; ic.trainSpeed = 1.5f; ic.info = 2;
+    net::BitStream bs3;
+    net::EncodeInCar(bs3, ic);
+    net::BitStream rd3;
+    rd3.SetData(bs3.Data(), bs3.BitsUsed() / 8, true);
+    net::InCarSync ic2;
+    assert(net::DecodeInCar(rd3, ic2));
+    assert(ic2.vehicle == 7 && ic2.keys == 32 && ic2.px == 10 && ic2.carHealth == 900);
+    assert(ic2.dir[0] > 0.999f && ic2.tires[0] == 1 && ic2.trailer == 3);
+    assert(ic2.hydraAngle == 45 && ic2.trainSpeed == 1.5f && ic2.info == 2);
+  }
+
+  // query protocol build/parse
+  {
+    std::vector<uint8_t> q;
+    net::BuildQuery('i', 0x7F000001u, 7777, q);
+    assert(q.size() == 11u && q[0] == 'S' && q[4] == 127 && q[5] == 0);
+    assert(q[8] == 0x61 && q[9] == 0x1E && q[10] == 'i'); // port 7777 LE
+    std::vector<uint8_t> rc;
+    net::BuildRcon("cmdlist", 0x7F000001u, 7777, rc);
+    assert(rc.size() == 11u + 2u + 7u && rc[10] == 'c');
+    // synthetic 'i' reply
+    std::vector<uint8_t> rep = {'S', 'A', 'M', 'P', 'i', 0, 3, 0, 20, 0};
+    auto push = [&](const char* s) {
+      uint32_t n = (uint32_t)strlen(s);
+      rep.push_back((uint8_t)n); rep.push_back(0); rep.push_back(0); rep.push_back(0);
+      rep.insert(rep.end(), s, s + n);
+    };
+    push("HN"); push("GM"); push("EN");
+    net::QueryInfo info;
+    assert(net::ParseInfoReply(rep.data(), rep.size(), info));
+    assert(!info.locked && info.players == 3 && info.maxPlayers == 20);
+    assert(info.hostname == "HN" && info.gamemode == "GM" && info.language == "EN");
+    assert(!net::ParseInfoReply(rep.data(), 5, info)); // truncated
+    // 'd' reply with one player
+    std::vector<uint8_t> det = {'S', 'A', 'M', 'P', 'd', 1, 0, 5, 3, 'B', 'o', 'b'};
+    det.insert(det.end(), {10, 0, 0, 0, 20, 0, 0, 0}); // score 10, ping 20
+    std::vector<net::QueryPlayer> pls;
+    assert(net::ParseDetailReply(det.data(), det.size(), pls));
+    assert(pls.size() == 1 && pls[0].id == 5 && pls[0].name == "Bob");
+    assert(pls[0].score == 10 && pls[0].ping == 20);
   }
 
   printf("samp_smoke: all %s checks passed\n", kVersion);

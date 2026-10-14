@@ -4,23 +4,23 @@
 > modul selesai, temuan REA baru, build/test status berubah). Lihat `AGENTS.md`.
 > Format baris history: `| YYYY-MM-DD | area | +/-x% | alasan singkat |`.
 
-## Overall: 86% ✅ buildable (x64) · smoke PASS · spawn+dialog
+## Overall: 87% ✅ buildable (x64) · smoke PASS · sync+query+RakNet-src
 
 ```
-[█████████████████████░░░] 86%
+[█████████████████████░░░] 87%
 ```
 
 | # | Area (bobot) | % | Status / bukti |
 |---|---|---|---|
 | 01 | Identitas & inventaris REA (10) | 100% | PE x86, SHA `bccdb297…`, 6293 proc / 4265 str, import map, versi `0.3.DL-R1` — `docs/REVERSE_NOTES.md` |
 | 02 | Core: DllMain/archive/hooks/exception/version (20) | 84% | +`LOADER.md` (UPX unpack 414K→1.1M, imports/strings injeksi) + loader CLI penuh `-c -h -p -n [-z]`; sisa: RSA-verify, `LAB_*` boundaries |
-| 03 | Net: packets/BitStream/NetGame/RakPeer/RPC (20) | 88% | +death codec exact +compressed-vector gate math teruji; sisa: vendor RakNet + wire live |
+| 03 | Net: packets/BitStream/NetGame/RakPeer/RPC (20) | 93% | +compressed-unit wire terverifikasi sumber RakNet +codec sync onfoot/aim/incar +query protocol browser; sisa: adapter drain + wire live |
 | 04 | Game: manager/pools/patches (15) | 82% | +`SpawnManager` FSM (class/request/reply/spawn order 2,1,0) teruji; sisa: patch runtime x86 |
 | 05 | GUI/D3D: hook/chat/dialog/score/textdraw/fonts/shot (15) | 83% | +`Dialog` penuh (style 0-5, caption 64, tab-parse, select) teruji; sisa: uji D3D nyata |
 | 06 | Audio/Input/Util/Loader (10) | 88% | +AudioStream 3D/volume/meta/tick +`WndProcRouter` penuh — teruji; sisa: unpack exact-alloc, runtime GTA |
 | 07 | Build & tes (10) | 78% | +CI job mingw-x86; x86 lokal TERBUKTI terblokir (cc1 i386 gagal, didok di AGENTS.md); sisa: injeksi nyata |
 
-Perhitungan: `(10×1.00 + 20×0.84 + 20×0.88 + 15×0.82 + 15×0.83 + 10×0.88 + 10×0.78)/100 = 85.75 → 86%`.
+Perhitungan: `(10×1.00 + 20×0.84 + 20×0.93 + 15×0.82 + 15×0.83 + 10×0.88 + 10×0.78)/100 = 86.75 → 87%`.
 
 ## Definisi % per area
 
@@ -41,6 +41,7 @@ Perhitungan: `(10×1.00 + 20×0.84 + 20×0.88 + 15×0.82 + 15×0.83 + 10×0.88 +
 | 2026-10-14 | gui+input+net+build | colors/chat/death/score/recall/death-codec/vec-gate + test; CI x86 job; x86-lokal terbukti terblokir; build+smoke PASS | 84% |
 | 2026-10-14 | audio+input+game | AudioStream 3D + WndProc router + ModelQueue DL-R1 + docs; build+smoke PASS | 85% |
 | 2026-10-14 | game+gui | SpawnManager FSM + Dialog penuh + test; build+smoke PASS | 86% |
+| 2026-10-14 | net | Clone Knogle/RakNet (verifikasi format) + sync codec + query protocol + test; build+smoke PASS | 87% |
 
 ## Next (untuk naik %)
 

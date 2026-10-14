@@ -26,6 +26,14 @@ public:
   void WriteU16(uint16_t v);
   void WriteU32(uint32_t v);
   void WriteStr(const char* s); // raw bytes, no length prefix (matches join packet)
+  // RakNet-compatible compressed unit float (verified vs Knogle/RakNet
+  // BitStream.h:907-915,1124-1129): clamp [-1,1], u16 (v+1)*32767.5.
+  void WriteCompressedUnit(float v);
+  bool ReadCompressedUnit(float& v);
+  // open.mp-style compressed vector: magnitude float, then 3 units only when
+  // magnitude > 1e-5 (libsamp openmp_compressed_vector_compat rule).
+  void WriteCompVector(float mag, float x, float y, float z);
+  bool ReadCompVector(float& mag, float out[3]);
   size_t BitsUsed() const { return bitsUsed_; }
   size_t ReadOffset() const { return readOff_; }
   const uint8_t* Data() const { return data_; }
