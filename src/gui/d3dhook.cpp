@@ -24,7 +24,9 @@ void* GetGtaDevice() { // FUN_100a1190: returns *(0x7F9D50|0x7F9D90) by version
 
 bool InstallD3DHooks() {
   LoadD3D9();
-  // TODO(rea): vtable Present(17)/Reset(16) patch on borrowed device.
+  // Reference (main.cpp:369): *(IDirect3DDevice9Hook**)0x00C97C28 = new hook
+  // wrapping the borrowed GTA device; Present=17/Reset=16 overridden.
+  // TODO(rea): real COM replacement happens only in x86 GTA process.
   return g_d3d9 != nullptr;
 }
 void RemoveD3DHooks() {}

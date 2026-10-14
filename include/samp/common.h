@@ -5,6 +5,7 @@
 #include <cstdint>
 #include <cstddef>
 #include <string>
+#include "samp/game/gta_addrs.h"
 
 namespace samp {
 
@@ -23,16 +24,16 @@ inline constexpr bool IsVirtualHandle(uint32_t h) {
   return h > kVirtualHandleBase && h < kVirtualHandleMax;
 }
 
-// GTA:SA 1.0 US/EU absolute addresses referenced by patcher (observed DAT_00xxxxxx).
-// Kept as constants so 32-bit target build patches the right places; on x64 they are
-// only used by tests / documentation, never dereferenced.
+// GTA:SA 1.0 US/EU absolute addresses — canonical map now lives in
+// game/gta_addrs.h (ported from samp-source address.h). Aliases kept so
+// existing code still compiles.
 namespace gta {
-inline constexpr uint32_t kStateDword   = 0x00C8D4C0u; // waited until ==7 by InitThreadProc
-inline constexpr uint32_t kHwndDword    = 0x00C97C1Cu;
-inline constexpr uint32_t kReadyByte    = 0x00BA6831u;
-inline constexpr uint32_t kVersionByte  = 0x00747483u; // 0x89=US1.0, 0xC8=EU (FUN_100aa300)
-inline constexpr uint32_t kDevicePtrUS1  = 0x007F9D50u; // FUN_100a1190 branch DAT_102ac9b8==1
-inline constexpr uint32_t kDevicePtrUS2  = 0x007F9D90u; // FUN_100a1190 branch ==2
+inline constexpr uint32_t kStateDword   = samp::gta::kEntryState;
+inline constexpr uint32_t kHwndDword    = samp::gta::kHwnd;
+inline constexpr uint32_t kReadyByte    = samp::gta::kGameStarted;
+inline constexpr uint32_t kVersionByte  = samp::gta::kBypassVidsUS;
+inline constexpr uint32_t kDevicePtrUS1  = samp::gta::kRwGetD3D_US;
+inline constexpr uint32_t kDevicePtrUS2  = samp::gta::kRwGetD3D_EU;
 } // namespace gta
 
 } // namespace samp

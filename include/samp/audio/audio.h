@@ -3,6 +3,9 @@
 // (BASS_Init(-1,0xAC44), SetConfigPtr "SA-MP/0.3"), FUN_100663e0 play request,
 // thread 0x10066180 (StreamCreateURL flags 0x940000 + ChannelPlay + tags +
 // SetSync), FUN_10066040 tag parse. 3D setters imported, callers unresolved.
+// Reference (audiostream.*): BASS_Init(-1,44100), NET_AGENT "SA-MP/0.3",
+// StreamCreateURL flags BLOCK|STATUS|AUTOFREE, Meta+Ogg sync, Process()
+// every Present (radio duck, distance attenuation, icy-name+title label).
 #include <string>
 namespace samp { namespace audio {
 bool Init(); // FUN_10065f00

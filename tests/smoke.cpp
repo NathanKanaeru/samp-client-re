@@ -7,6 +7,9 @@
 #include "samp/net/bitstream.h"
 #include "samp/net/packets.h"
 #include "samp/net/rpc.h"
+#include "samp/net/rpc_ids.h"
+#include "samp/net/limits.h"
+#include "samp/game/gta_addrs.h"
 #include "samp/game/pools.h"
 #include "samp/game/player.h"
 #include "samp/game/vehicle.h"
@@ -38,6 +41,21 @@ int main() {
   // api registry
   net::RegisterRakPeerApi();
   assert(!net::ApiRegistry().empty());
+
+  // reference limits (sdk/shared.h) + RPC IDs (SAMPRPC.h) + x86 map (address.h)
+  static_assert(net::kMaxPlayers == 200, "net players");
+  static_assert(net::kMaxVehicles == 700, "net vehicles");
+  static_assert(net::kMaxObjects == 255, "net objects");
+  static_assert(net::kMaxActors == 1000, "net actors");
+  static_assert(net::kMaxTextDrawSlots == 2304, "textdraw slots");
+  static_assert(net::kNetGameVersion == 4242, "netgame version");
+  static_assert((int)net::GameRpc::ClientJoin == 25, "ClientJoin");
+  static_assert((int)net::ScriptRpc::AudioStream == 182, "AudioStream");
+  static_assert((int)net::ConnPacket::Timestamp == 133, "timestamp pkt");
+  static_assert(gta::kEntryState == 0x00C8D4C0u, "entry state");
+  static_assert(gta::kD3DDevicePtr == 0x00C97C28u, "device ptr");
+  static_assert(gta::kRwGetD3D_US == 0x007F9D50u, "rw us");
+  static_assert(game::kOverlayMaxVehicle == 2000, "overlay vehicles");
 
   // pools
   assert(game::Vehicles().Create(0, 411, 0, 0, 3, 0));

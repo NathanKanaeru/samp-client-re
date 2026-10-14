@@ -1,6 +1,13 @@
 #pragma once
-// CArchive over samp.saa. Observed: ctor 0x10064dd0, Open 0x10064f20 (vtable+4),
-// Close 0x10064890, vtable 0x1011bae0, object 0x935 bytes.
+// CArchive over samp.saa. Observed: ctor 0x10064dd0 (entryCap 0x78 @+0x119), Open 0x10064f20
+// (vtable+4, 2 virtual reads, XOR hdr check mask 0x83433/bits 0x200000), Close 0x10064890,
+// vtable 0x1011bae0, object 0x935 bytes.
+// Reference (samp-source client/archive/ArchiveCommon.h, ArchiveFS.* — verified):
+// SAA_FILE_ID 0x83433 (== observed mask — konvergen!), SAA_VERSION 2,
+// SAA_BLOCK_SIZE 2048, SAA_MAX_ENTRIES 256, header "SAA2"+u16 count (decoy),
+// real VER2 header 8B (dwCompleteID ^ dwXORKey), entries 8B (nameHash + prev/size),
+// TEA-encrypted entry table + per-block data, RSA-128 signature, virtual handles
+// 0xFF000001..0xFF000101 step 2, MAX_OPEN_ARCH_FILES 50.
 #include <string>
 #include <cstdint>
 #include <windows.h>
@@ -10,8 +17,12 @@ namespace samp { namespace core {
 class CArchive {
 public:
   static constexpr size_t kObjectSize = 0x935;
-  static constexpr uint32_t kAcceptMask  = 0x83433u;
+  static constexpr uint32_t kAcceptMask  = 0x83433u; // == SAA_FILE_ID (ArchiveCommon.h:15)
   static constexpr uint32_t kAcceptBits  = 0x200000u;
+  static constexpr uint32_t kFileId      = 0x83433u;
+  static constexpr uint32_t kFileVersion = 2;
+  static constexpr uint32_t kBlockSize   = 2048;
+  static constexpr uint32_t kMaxEntries  = 256;
   CArchive();
   ~CArchive();
   // Opens archive file (default "samp.saa" resolved next to DLL).

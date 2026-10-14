@@ -2,6 +2,10 @@
 // CNetGame. Observed: FUN_1000b290 Pump, FUN_1000af40 Dispatch, FUN_10008630
 // SendConnectRetry, FUN_1000aa60 OnAccept_Join, FUN_1000a9d0 OnLost,
 // FUN_10008ad0 OnClosed, FUN_1000a230 ResetWorld, FUN_10009df0 AuthReply.
+// Reference join (samp-source netgame.cpp:745-788): retry every 3s via
+// Connect(host,port,0,0,10); on ACCEPT read uiChallenge, xor with
+// NETGAME_VERSION (4242), send RPC_ClientJoin(version 4242, mod 0x01,
+// nick, challenge^version, GPCI computer id, version string).
 #include <cstdint>
 #include "samp/net/rakpeer.h"
 
@@ -22,7 +26,9 @@ public:
   void OnServerClosed();    // FUN_10008ad0 ("Server closed the connection.")
   void ResetWorld();        // FUN_1000a230
   void SetServer(const char* host, uint16_t port, const char* password);
+  void SetNick(const char* nick);
   NetState state() const { return state_; }
+  uint32_t challenge() const { return challenge_; }
 private:
   RakPeerWrapper peer_;
   char     host_[64] = {};
@@ -31,6 +37,7 @@ private:
   char     nick_[32] = {};
   NetState state_ = NetState::Idle;
   uint32_t lastTick_ = 0;
+  uint32_t challenge_ = 0; // server challenge, xor NETGAME_VERSION on join
 };
 
 }} // namespace

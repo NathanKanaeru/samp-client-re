@@ -16,7 +16,8 @@ bool Init() { // FUN_10065f00
   g_bass = LoadLibraryA("bass.dll");
   if (!g_bass) return false; // keep client usable without audio dll
   using InitFn = int(*)(int, unsigned, unsigned, void*, void*);
-  if (auto* f = (InitFn)Sym("BASS_Init")) f(-1, 0xAC44, 0, 0, 0);
+  // Reference uses 44100 Hz (audiostream.cpp:29-55); observed binary used 0xAC44.
+  if (auto* f = (InitFn)Sym("BASS_Init")) f(-1, 44100, 0, 0, 0);
   return true;
 }
 

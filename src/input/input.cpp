@@ -22,9 +22,11 @@ bool HookWndProc(void* hwnd) { // FUN_10061970: SetClassLong + SetWindowLong(GWL
 }
 
 void RegisterCommands() { // FUN_10068b50 via FUN_100691b0
-  // fpslimit, pagesize, fontsize, nametagstatus, timestamp, headmove,
-  // hudscalefix, testdw, vsel, vehicle, player_skin, set_weather, set_time,
-  // interior, togobjlight, cmpstat, ctd, dl, audiomsg, logurls, rcon, rs, save, mem
+  // Reference full list (cmdprocs.cpp:1546-1582): quit,q,save,rs,rcon,mem,
+  // pagesize,timestamp,hudscalefix,headmove,disvehico,testdw,vsel,v,vehicle,
+  // player_skin,set_weather,set_time,interior,cmpstat,dl,onfoot_correct,
+  // incar_correct,inacc_multiplier,fpslimit,audiomsg (+ _DEBUG-only set).
+  // TODO(rea): bind each name to its handler proc.
 }
 
 }} // namespace

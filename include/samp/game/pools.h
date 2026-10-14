@@ -1,14 +1,29 @@
 #pragma once
-// Pools. Observed caps: vehicle 2000, player 1004/1005 (0x3EC/0x3ED),
-// object 2101 (0x835), actor 1000, ped-slot map 210 @DAT_1018E1D8.
+// Pools. Two cap families (documented discrepancy):
+//  - Net slots (authoritative for protocol): net/limits.h
+//    (MAX_PLAYERS 200, VEHICLES 700, OBJECTS 255, ACTORS 1000, ...).
+//  - GTA-side overlay guards observed in samp.dll FUN_10004710:
+//    vehicle 2000, player 1004/1005 (0x3EC/0x3ED), object 2101, actor 1000.
+// Game pools below use NET caps (protocol truth); overlay guards live in
+// VehiclePool::Get/PlayerPool::Get bounds checks.
 #include <cstdint>
+#include "samp/net/limits.h"
 
 namespace samp { namespace game {
 
-inline constexpr int kMaxVehicle = 2000;
-inline constexpr int kMaxPlayer  = 1004;
-inline constexpr int kMaxObject  = 2101;
-inline constexpr int kMaxActor   = 1000;
+using net::kMaxPlayers;
+using net::kMaxVehicles;
+using net::kMaxObjects;
+using net::kMaxActors;
+// GTA-side overlay guard caps observed in FUN_10004710 (not protocol caps).
+inline constexpr int kOverlayMaxVehicle = 2000;
+inline constexpr int kOverlayMaxPlayer  = 1004;
+inline constexpr int kOverlayMaxObject  = 2101;
+
+inline constexpr int kMaxVehicle = kMaxVehicles;
+inline constexpr int kMaxPlayer  = kMaxPlayers;
+inline constexpr int kMaxObject  = kMaxObjects;
+inline constexpr int kMaxActor   = kMaxActors;
 
 struct VehicleEntry { void* cv = nullptr; void* gta = nullptr; int active = 0; float pos[3] = {}; };
 struct PlayerEntry  { void* cp = nullptr; int used = 0; };

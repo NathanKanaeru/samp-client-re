@@ -56,7 +56,8 @@ bool RemoveDetour(HookHandle* h) {
 
 bool IsSampHandle(HANDLE h) {
   uint32_t v = (uint32_t)(uintptr_t)h;
-  return samp::IsVirtualHandle(v);
+  return v > kCustomHandleBase - 1 && v < kCustomHandleLimit;
+  // == samp::IsVirtualHandle range; base 0xFF000001 step 2 (filehooks.h:16, filehooks.cpp:92-93)
 }
 
 int FindSlotForHandle(HANDLE) { return -1; } // table DAT_1016bf60/32 slots; TODO(rea)

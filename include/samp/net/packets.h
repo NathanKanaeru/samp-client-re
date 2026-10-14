@@ -2,7 +2,11 @@
 // Packet IDs. Observed: name table 0x10033650 (13 entries, IDs 200-212),
 // strings ID_VEHICLE_SYNC @0x10119414 etc. NOTE: table is stringify-only
 // (each case RETs) — NOT the dispatcher. Dispatcher is Net_DispatchIncoming.
+// Reference note: samp-source's newer RakNet numbers custom SAMP packets after
+// ID_USER_PACKET_ENUM (271); the 200-212 numbering here is what THIS binary
+// (0.3.DL-R1, older RakNet) actually uses — keep both documented.
 #include <cstdint>
+#include "samp/net/rpc_ids.h" // ConnPacket (RakNet conn IDs 81-133)
 
 namespace samp { namespace net {
 

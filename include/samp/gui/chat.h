@@ -2,6 +2,8 @@
 // Chat window. Observed: FUN_10067c40 (render-to-surface w/ direct fallback),
 // FUN_100c5e70 (root init, chatlog.txt), FUN_10068b50 (cmd reg),
 // FUN_100c6950/69a0/69e0 (fontsize scaling), strings ChatWindow/directmode.
+// Reference (chatwindow.h): MAX_MESSAGE_LENGTH 144, MAX_LINE_LENGTH 72,
+// MAX_MESSAGES 100, DISP_MESSAGES 10 (default page size).
 #include <string>
 namespace samp { namespace gui {
 class ChatWindow {

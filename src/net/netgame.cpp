@@ -3,6 +3,7 @@
 #include "samp/net/netgame.h"
 #include "samp/net/packets.h"
 #include "samp/net/bitstream.h"
+#include "samp/net/limits.h"
 #include "samp/common.h"
 #include <windows.h>
 #include <cstring>
@@ -18,6 +19,10 @@ void CNetGame::SetServer(const char* host, uint16_t port, const char* pw) {
   if (pw) strncpy(password_, pw, sizeof password_ - 1);
 }
 
+void CNetGame::SetNick(const char* nick) {
+  if (nick) strncpy(nick_, nick, sizeof nick_ - 1);
+}
+
 void CNetGame::SendConnectRetry() { // FUN_10008630: 3s timer
   uint32_t now = GetTickCount();
   if (now - lastTick_ > 3000) {
@@ -30,6 +35,9 @@ void CNetGame::SendConnectRetry() { // FUN_10008630: 3s timer
 }
 
 void CNetGame::OnAccept_Join() { // FUN_1000aa60
+  // Reference join (netgame.cpp:745-788): challenge_ ^= NETGAME_VERSION (4242),
+  // then RPC_ClientJoin(version 4242, mod 0x01, nick, challenge, GPCI id, ver string).
+  challenge_ ^= kNetGameVersion;
   BitStream bs;
   bs.WriteU32(0xFDE);            // observed magic
   bs.WriteStr(nick_);
