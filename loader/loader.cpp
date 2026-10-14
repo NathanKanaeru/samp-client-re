@@ -1,58 +1,100 @@
-// samp_loader: clean-room launcher. Original samp.exe is UPX-packed
-// (EntryRVA 0x1216A0, sections UPX0/UPX1) so its import table is hidden;
-// observed neighbors: bass.dll, samp.saa (SAA2), SAMP/ game data.
-// This launcher: finds gta_sa.exe next to itself, verifies samp.saa +
-// client DLL exist, then CreateProcess + inject via remote LoadLibrary.
+// samp_loader: clean-room launcher implementing the observed samp.exe contract.
+// Evidence: docs/LOADER.md (unpacked PE: CreateProcessA + WriteProcessMemory +
+// CreateRemoteThread(LoadLibraryA) + ResumeThread; CLI `-c -h -p -n [-z]|-d`).
+// The exact remote-allocation primitive in the original is unresolved
+// (VirtualAllocEx absent from imports) — we use VirtualAllocEx, the standard
+// equivalent, and say so. No game assets shipped; needs local GTA:SA install.
 #include <windows.h>
 #include <string>
 #include <cstdio>
+#include <cstring>
 
-static std::string DirOf(const std::string& p) {
+namespace {
+
+std::string DirOf(const std::string& p) {
   auto i = p.find_last_of("\\/");
   return i == std::string::npos ? "." : p.substr(0, i);
 }
 
-static bool FileExists(const std::string& p) {
-  DWORD a = GetFileAttributesA(p.c_str());
-  return a != INVALID_FILE_ATTRIBUTES;
+bool FileExists(const std::string& p) {
+  return GetFileAttributesA(p.c_str()) != INVALID_FILE_ATTRIBUTES;
 }
 
-static bool Inject(HANDLE proc, const std::string& dll) {
+void Usage() {
+  printf("samp_loader - clean-room SA-MP 0.3.DL launcher\n"
+         "usage:\n"
+         "  samp_loader -c -h HOST -p PORT -n NICK [-z PASS]\n"
+         "  samp_loader -d\n"
+         "  samp_loader [gta_path]   (defaults: .\\gta_sa.exe + .\\samp_client.dll)\n");
+}
+
+bool InjectRemote(HANDLE proc, const std::string& dll) {
   size_t n = dll.size() + 1;
   void* mem = VirtualAllocEx(proc, nullptr, n, MEM_COMMIT | MEM_RESERVE, PAGE_READWRITE);
-  if (!mem) return false;
-  if (!WriteProcessMemory(proc, mem, dll.c_str(), n, nullptr)) return false;
-  HMODULE k = GetModuleHandleA("kernel32.dll");
-  auto* fn = (LPTHREAD_START_ROUTINE)(void*)GetProcAddress(k, "LoadLibraryA");
+  if (!mem) { printf("VirtualAllocEx failed %lu\n", GetLastError()); return false; }
+  if (!WriteProcessMemory(proc, mem, dll.c_str(), n, nullptr)) {
+    printf("WriteProcessMemory failed %lu\n", GetLastError());
+    return false;
+  }
+  auto* fn = (LPTHREAD_START_ROUTINE)(void*)GetProcAddress(
+      GetModuleHandleA("kernel32.dll"), "LoadLibraryA");
   HANDLE th = CreateRemoteThread(proc, nullptr, 0, fn, mem, 0, nullptr);
-  if (!th) return false;
-  WaitForSingleObject(th, 10000);
+  if (!th) { printf("CreateRemoteThread failed %lu\n", GetLastError()); return false; }
+  DWORD wr = WaitForSingleObject(th, 15000);
   CloseHandle(th);
-  return true;
+  return wr == WAIT_OBJECT_0;
 }
+
+} // namespace
 
 int main(int argc, char** argv) {
   char self[MAX_PATH] = {};
   GetModuleFileNameA(nullptr, self, MAX_PATH);
   std::string dir = DirOf(self);
   std::string gta = dir + "\\gta_sa.exe";
-  std::string saa = dir + "\\samp.saa";
   std::string dll = dir + "\\samp_client.dll";
-  if (argc > 1 && argv[1][0]) gta = argv[1];
+
+  // Parse observed CLI: -c -h HOST -p PORT -n NICK [-z PASS] | -d
+  std::string host, port = "7777", nick = "Player", pass;
+  bool connect = false, debug = false;
+  for (int i = 1; i < argc; ++i) {
+    if (!strcmp(argv[i], "-h") && i + 1 < argc) host = argv[++i];
+    else if (!strcmp(argv[i], "-p") && i + 1 < argc) port = argv[++i];
+    else if (!strcmp(argv[i], "-n") && i + 1 < argc) nick = argv[++i];
+    else if (!strcmp(argv[i], "-z") && i + 1 < argc) pass = argv[++i];
+    else if (!strcmp(argv[i], "-c")) connect = true;
+    else if (!strcmp(argv[i], "-d")) debug = true;
+    else if (argv[i][0] != '-') gta = argv[i];
+    else { Usage(); return 1; }
+  }
+  if (!connect && !debug && host.empty()) {
+    // No flags: legacy direct mode (gta path only).
+  }
+  if (connect && host.empty()) { printf("missing -h HOST\n"); return 1; }
   if (!FileExists(gta)) { printf("missing %s\n", gta.c_str()); return 1; }
-  if (!FileExists(saa)) printf("warning: missing %s\n", saa.c_str());
   if (!FileExists(dll)) printf("warning: missing %s\n", dll.c_str());
 
-  STARTUPINFOA si{}; PROCESS_INFORMATION pi{}; si.cb = sizeof si;
+  // Forward the exact contract to the game process.
   std::string cmd = "\"" + gta + "\"";
-  if (!CreateProcessA(gta.c_str(), cmd.data(), nullptr, nullptr, FALSE, CREATE_SUSPENDED,
+  if (debug) cmd += " -d";
+  if (connect) {
+    cmd += " -c -h " + host + " -p " + port + " -n " + nick;
+    if (!pass.empty()) cmd += " -z " + pass;
+  }
+
+  STARTUPINFOA si{};
+  PROCESS_INFORMATION pi{};
+  si.cb = sizeof si;
+  if (!CreateProcessA(gta.c_str(), cmd.data(), nullptr, nullptr, FALSE,
+                      CREATE_SUSPENDED | CREATE_DEFAULT_ERROR_MODE,
                       nullptr, dir.c_str(), &si, &pi)) {
     printf("CreateProcess failed %lu\n", GetLastError());
     return 1;
   }
-  bool ok = Inject(pi.hProcess, dll);
+  bool ok = InjectRemote(pi.hProcess, dll);
   ResumeThread(pi.hThread);
-  CloseHandle(pi.hThread); CloseHandle(pi.hProcess);
-  printf(ok ? "injected %s\n" : "inject failed\n", dll.c_str());
+  CloseHandle(pi.hThread);
+  CloseHandle(pi.hProcess);
+  printf(ok ? "launched + injected %s\n" : "launched but inject failed\n", dll.c_str());
   return ok ? 0 : 2;
 }

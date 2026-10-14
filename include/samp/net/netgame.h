@@ -29,6 +29,13 @@ public:
   void SetNick(const char* nick);
   NetState state() const { return state_; }
   uint32_t challenge() const { return challenge_; }
+  // Sync router: counts packets per ID (netstats/F5) and applies the
+  // documented-minimal layouts. Wire offsets for DL-R1 sync structs are
+  // inferred from the R5 PACKET200 doc — full struct parity is TODO(rea).
+  // Minimal 200 layout: u16 vehicleId + float x,y,z. Returns false when
+  // the buffer is too short for the claimed ID.
+  bool RouteSync(uint8_t id, const uint8_t* data, size_t len);
+  uint32_t syncCount(uint8_t id) const { return syncCount_[id]; }
 private:
   RakPeerWrapper peer_;
   char     host_[64] = {};
@@ -38,6 +45,7 @@ private:
   NetState state_ = NetState::Idle;
   uint32_t lastTick_ = 0;
   uint32_t challenge_ = 0; // server challenge, xor NETGAME_VERSION on join
+  uint32_t syncCount_[256] = {};
 };
 
 }} // namespace

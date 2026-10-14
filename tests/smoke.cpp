@@ -19,6 +19,8 @@
 #include "samp/game/pools.h"
 #include "samp/game/player.h"
 #include "samp/game/vehicle.h"
+#include "samp/net/netgame.h"
+#include "samp/gui/d3d_device_hook.h"
 #include "samp/gui/fonts.h"
 #include "samp/util/config.h"
 #include "samp/util/string_utils.h"
@@ -76,6 +78,65 @@ int main() {
   int pid = game::Players().Alloc();
   assert(pid >= 0);
   assert(game::SpawnPlayer(pid, 0, 100, 200, 3, 90));
+
+  // vehicle playback blend (PACKET200 constants)
+  {
+    float cur[3] = {0, 0, 0}, out[3];
+    game::RemoteFrame snap;
+    snap.pos[0] = 100; snap.pos[1] = 0; snap.pos[2] = 0; snap.airOrBoat = false;
+    game::BlendVehiclePos(cur, snap, out); // |err|>8 -> snap
+    assert(out[0] == 100 && out[1] == 0 && out[2] == 0);
+    game::RemoteFrame small;
+    small.pos[0] = 0.03f; small.pos[1] = 0; small.pos[2] = 0; small.airOrBoat = false;
+    game::BlendVehiclePos(cur, small, out); // within deadband -> hold
+    assert(out[0] == 0 && out[1] == 0 && out[2] == 0);
+    game::RemoteFrame mid;
+    mid.pos[0] = 1.0f; mid.pos[1] = 0; mid.pos[2] = 0; mid.airOrBoat = false;
+    game::BlendVehiclePos(cur, mid, out); // 1.0*0.06=0.06 > 0.01 -> apply
+    assert(out[0] > 0.05f && out[0] < 0.07f);
+  }
+
+  // sync router: synthetic vehicle packet (u16 id + xyz)
+  {
+    net::CNetGame g;
+    assert(game::Vehicles().Create(7, 411, 0, 0, 0, 0));
+    uint8_t pkt[14] = {};
+    pkt[0] = 7; pkt[1] = 0;
+    float x = 50.0f;
+    memcpy(pkt + 2, &x, 4);
+    assert(g.RouteSync(200, pkt, sizeof pkt));
+    assert(g.syncCount(200) == 1);
+    auto* v = game::Vehicles().Get(7);
+    assert(v && v->pos[0] == 50.0f); // snapped (|50|>8)
+    assert(!g.RouteSync(200, pkt, 5)); // too short
+    game::DeleteVehicle(7);
+  }
+
+  // D3D hook on a fake vtable (slot routing without D3D)
+  {
+    struct FakeDev { void** vtbl; };
+    using PFn = long(__stdcall*)(void*, const void*, const void*, void*, const void*);
+    using RFn = long(__stdcall*)(void*, void*);
+    using OFn = long(__stdcall*)(void*);
+    PFn fakePresent = [](void*, const void*, const void*, void*, const void*) -> long { return 7; };
+    RFn fakeReset = [](void*, void*) -> long { return 9; };
+    OFn fakeOther = [](void*) -> long { return 3; };
+    void* table[20];
+    for (int i = 0; i < 20; ++i) table[i] = (void*)fakeOther;
+    table[17] = (void*)fakePresent;
+    table[16] = (void*)fakeReset;
+    FakeDev dev{table};
+    auto* h = gui::HookDevice(&dev, 20);
+    assert(h && gui::HookVTable(h)[17] != table[17]);
+    assert(gui::HookVTable(h)[5] == table[5]); // untouched slots forward
+    // Override resolves the hook by device and forwards to the original.
+    PFn hookedPresent = (PFn)gui::HookVTable(h)[17];
+    assert(hookedPresent(&dev, nullptr, nullptr, nullptr, nullptr) == 7);
+    RFn hookedReset = (RFn)gui::HookVTable(h)[16];
+    assert(hookedReset(&dev, nullptr) == 9);
+    gui::UnhookDevice(h);
+    gui::UnhookDevice(nullptr); // safe no-op
+  }
 
   // fonts/config/strings
   assert(gui::FontSizeFor(10, 2) == 14);

@@ -48,6 +48,7 @@ set(SAMP_SOURCES
   src/game/vehicle.cpp
   src/game/gta_patches.cpp
   src/gui/d3dhook.cpp
+  src/gui/d3d_device_hook.cpp
   src/gui/chat.cpp
   src/gui/gui_rest.cpp
   src/gui/dialog.cpp
