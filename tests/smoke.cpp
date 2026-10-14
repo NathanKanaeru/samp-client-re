@@ -22,6 +22,7 @@
 #include "samp/net/netgame.h"
 #include "samp/gui/d3d_device_hook.h"
 #include "samp/gui/chat.h"
+#include "samp/gui/dialog.h"
 #include "samp/gui/colors.h"
 #include "samp/gui/deathwindow.h"
 #include "samp/gui/scoreboard.h"
@@ -31,6 +32,7 @@
 #include "samp/input/wndproc.h"
 #include "samp/audio/audio.h"
 #include "samp/game/models.h"
+#include "samp/game/spawn.h"
 #include "samp/gui/fonts.h"
 #include "samp/util/config.h"
 #include "samp/util/string_utils.h"
@@ -266,6 +268,47 @@ int main() {
     assert(q.Find(0x1234)->dff == game::ModelReqState::Ready);
     assert(game::DffName("samp", 0xAB) == "samp/0xAB.dff");
     assert(game::TxdName("samp", 0xAB) == "samp/0xAB.txd");
+  }
+
+  // spawn FSM (localplayer flow)
+  {
+    game::SpawnManager sm;
+    assert(!sm.RequestClass(0)); // no classes yet
+    game::PlayerClass c;
+    c.skin = 7; c.x = 1; c.y = 2; c.z = 3; c.rot = 90;
+    sm.AddClass(c);
+    assert(sm.RequestClass(0) && sm.state() == game::SpawnState::ClassRequested);
+    assert(!sm.RequestSpawn()); // not settled
+    sm.OnClassSettled();
+    assert(sm.RequestSpawn() && sm.state() == game::SpawnState::WaitSpawnReply);
+    game::SpawnInfo si;
+    si.team = 1; si.skin = 7; si.x = 1; si.y = 2; si.z = 3; si.rot = 90;
+    si.weapons[0] = 24; si.ammo[0] = 100; si.weapons[2] = 30; si.ammo[2] = 200;
+    sm.SetSpawnInfo(si);
+    static int gave[4];
+    static int ngave;
+    ngave = 0;
+    game::SpawnEvents ev;
+    ev.giveWeapon = [](int w, int a) { gave[ngave++] = w * 1000 + a; };
+    assert(sm.Spawn(ev) && sm.state() == game::SpawnState::Spawned);
+    assert(ngave == 2 && gave[0] == 30 * 1000 + 200 && gave[1] == 24 * 1000 + 100); // 2,1,0 order
+  }
+
+  // dialog state (styles 0-5, tab parse, caption cap)
+  {
+    gui::Dialog& d = gui::GetDialog();
+    assert(!d.ShowDialog(1, 9, "c", "t", "a", "b")); // bad style
+    assert(d.ShowDialog(3, 4, std::string(100, 'C'), "h1\th2\nr1c1\tr1c2\nr2c1\tr2c2", "OK", "Cancel"));
+    assert(d.state().visible && d.state().caption.size() == 64);
+    assert(d.state().rows.size() == 3 && d.state().rows[1].size() == 2);
+    assert(d.state().rows[1][0] == "r1c1");
+    assert(d.SelectRow(2) && d.state().selected == 2);
+    assert(!d.SelectRow(9));
+    d.Hide();
+    assert(!d.state().visible && !d.SelectRow(0));
+    assert(d.ShowDialog(4, 0, "hi", "msg", "OK", ""));
+    assert(d.state().rows.empty()); // msgbox: no rows
+    d.Hide();
   }
   util::SetCfg("fontsize", "2");
   assert(util::GetCfgInt("fontsize", 0) == 2);

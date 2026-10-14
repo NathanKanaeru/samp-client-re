@@ -45,6 +45,7 @@ set(SAMP_SOURCES
   src/game/game.cpp
   src/game/pools.cpp
   src/game/models.cpp
+  src/game/spawn.cpp
   src/game/player.cpp
   src/game/vehicle.cpp
   src/game/gta_patches.cpp
@@ -55,6 +56,7 @@ set(SAMP_SOURCES
   src/gui/chat.cpp
   src/gui/gui_rest.cpp
   src/gui/dialog.cpp
+  src/gui/dialog_state.cpp
   src/gui/scoreboard.cpp
   src/gui/textdraw.cpp
   src/gui/fonts.cpp
