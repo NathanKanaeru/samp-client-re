@@ -49,6 +49,8 @@ set(SAMP_SOURCES
   src/game/gta_patches.cpp
   src/gui/d3dhook.cpp
   src/gui/d3d_device_hook.cpp
+  src/gui/colors.cpp
+  src/gui/deathwindow.cpp
   src/gui/chat.cpp
   src/gui/gui_rest.cpp
   src/gui/dialog.cpp
@@ -58,6 +60,7 @@ set(SAMP_SOURCES
   src/gui/screenshot.cpp
   src/audio/audio.cpp
   src/input/input.cpp
+  src/input/cmd_window.cpp
   src/util/config.cpp
   src/util/crash.cpp
   src/util/string_utils.cpp

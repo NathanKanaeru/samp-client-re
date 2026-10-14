@@ -21,6 +21,13 @@
 #include "samp/game/vehicle.h"
 #include "samp/net/netgame.h"
 #include "samp/gui/d3d_device_hook.h"
+#include "samp/gui/chat.h"
+#include "samp/gui/colors.h"
+#include "samp/gui/deathwindow.h"
+#include "samp/gui/scoreboard.h"
+#include "samp/net/death_codec.h"
+#include "samp/net/compressed_vector.h"
+#include "samp/input/cmd_window.h"
 #include "samp/gui/fonts.h"
 #include "samp/util/config.h"
 #include "samp/util/string_utils.h"
@@ -142,6 +149,67 @@ int main() {
   assert(gui::FontSizeFor(10, 2) == 14);
   assert(gui::FontWeightFor(0) == 700);
   assert(strcmp(gui::FontFaceFor(""), "Arial") == 0);
+
+  // color tags (runutil.cpp exact rule)
+  assert(gui::ParseColorTag("{FF0000}hi") == 0xFF0000);
+  assert(gui::ParseColorTag("{ff0000}hi") == 0xFF0000);
+  assert(gui::ParseColorTag("{GG0000}") == gui::kNoColor);
+  assert(gui::ParseColorTag("{FF00}") == gui::kNoColor);
+  assert(gui::ParseColorTag("hi") == gui::kNoColor);
+  assert(gui::StripColorTags("A{FF0000}B{x}C") == "AB{x}C");
+
+  // chat store (100-entry shift, wrap at 72)
+  {
+    gui::ChatWindow cw;
+    cw.AddMessage(std::string(200, 'x'), 0);
+    assert(cw.Latest().text.size() <= 72u);
+    cw.AddMessage("short", 1);
+    assert(cw.Latest().text == "short" && cw.Total() == 2);
+    cw.SetPageSize(5);
+    assert(cw.PageSize() == 5);
+  }
+
+  // death codec + window ring
+  {
+    uint8_t raw[5] = {0x05, 0x00, 0x0A, 0x00, 31};
+    net::DeathMessage dm;
+    assert(net::DecodeDeathMessage(raw, 5, &dm));
+    assert(dm.killer == 5 && dm.killee == 10 && dm.reason == 31);
+    assert(!net::DecodeDeathMessage(raw, 4, &dm));
+    gui::DeathWindow dw;
+    for (int i = 0; i < 7; ++i) dw.Add("a", "b", i);
+    assert(dw.Count() == 5 && dw.At(4).reason == 6);
+    dw.AddSpecial("joiner", gui::kSpecialConnect);
+    assert(dw.At(4).reason == gui::kSpecialConnect);
+  }
+
+  // compressed-vector gate math
+  {
+    float o[3];
+    assert(net::ScaleCompressedVector(2.0f, 0.5f, 0.0f, -0.5f, o));
+    assert(o[0] == 1.0f && o[2] == -1.0f);
+    assert(net::ScaleCompressedVector(0.0f, 1, 1, 1, o) && o[0] == 0 && o[1] == 0 && o[2] == 0);
+    assert(!net::ScaleCompressedVector(-1.0f, 0, 0, 0, o));
+  }
+
+  // cmd recall ring (10x128)
+  {
+    input::CmdHistory h;
+    h.Push("first");
+    h.Push(std::string(200, 'y'));
+    assert(h.Size() == 2);
+    assert(h.RecallUp() == std::string(128, 'y')); // truncated
+    assert(h.RecallUp() == "first");
+    assert(h.RecallDown() == std::string(128, 'y'));
+    assert(h.RecallDown() == "");
+  }
+
+  // scoreboard sort
+  {
+    std::vector<gui::Scoreboard::Row> rows = {{"b", 5, 50}, {"a", 5, 30}, {"c", 9, 10}};
+    gui::Scoreboard::SortRows(rows);
+    assert(rows[0].name == "c" && rows[1].name == "a" && rows[2].name == "b");
+  }
   util::SetCfg("fontsize", "2");
   assert(util::GetCfgInt("fontsize", 0) == 2);
   assert(util::BasenameOf("C:\\GTASA\\samp.saa  ") == "samp.saa");

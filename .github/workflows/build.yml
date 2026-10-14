@@ -25,3 +25,23 @@ jobs:
         run: cmake --build build
       - name: Smoke test
         run: ./build/samp_smoke.exe
+
+  mingw-x86:
+    runs-on: windows-latest
+    defaults:
+      run:
+        shell: msys2 {0}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: msys2/setup-msys2@v2
+        with:
+          msystem: MINGW32
+          install: mingw-w64-i686-gcc mingw-w64-i686-cmake mingw-w64-i686-make
+      - name: Configure (32-bit, GTA:SA target arch)
+        run: cmake -S . -B build-x86 -G "MinGW Makefiles"
+      - name: Build (32-bit)
+        run: cmake --build build-x86
+      # NOTE: samp_smoke.exe is 32-bit; windows-latest runners execute it fine
+      # (unlike restricted local sandboxes that block 32-bit processes).
+      - name: Smoke test (32-bit)
+        run: ./build-x86/samp_smoke.exe

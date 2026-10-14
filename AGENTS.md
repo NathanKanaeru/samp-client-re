@@ -17,6 +17,10 @@ cmake --build build
 * Build default = MinGW-w64 **x64** (logika + DLL shell). Untuk injeksi GTA nyata
   butuh x86: `cmake -S . -B build-x86 -G "MinGW Makefiles" -DSAMP_X86=ON`
   (butuh toolchain i686) atau MSVC `-A Win32`.
+* DITEMUKAN 2026-10-14: eksekusi proses 32-bit diblokir di sandbox lokal ini
+  (bukti: `cc1.exe` i386 0x14c gagal diam-diam, `build-x86` configure gagal).
+  Jangan coba build-x86 lokal berulang — gunakan CI (`mingw-x86` job di
+  `.github/workflows/build.yml`, runner GitHub mengeksekusi 32-bit normal).
 * Referensi kode pakai pola `path:line`, mis. `src/net/bitstream.cpp:40`.
 
 ## 2. REA (reverse engineering)
