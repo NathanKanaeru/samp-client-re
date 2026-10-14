@@ -32,11 +32,16 @@ set(SAMP_SOURCES
   src/core/hooks_detour.cpp
   src/core/version.cpp
   src/core/version_impl.cpp
+  src/core/saa.cpp
   src/net/bitstream.cpp
   src/net/packets.cpp
   src/net/rakpeer.cpp
   src/net/netgame.cpp
   src/net/rpc.cpp
+  src/net/endpoint.cpp
+  src/net/socket_compat.cpp
+  src/net/bootstrap.cpp
+  src/net/raknet_adapter.cpp
   src/game/game.cpp
   src/game/pools.cpp
   src/game/player.cpp
@@ -71,5 +76,5 @@ endif()
 if(SAMP_BUILD_TESTS)
   add_executable(samp_smoke tests/smoke.cpp)
   target_include_directories(samp_smoke PRIVATE include)
-  target_link_libraries(samp_smoke PRIVATE samp_client)
+  target_link_libraries(samp_smoke PRIVATE samp_client ws2_32)
 endif()

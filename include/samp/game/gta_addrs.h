@@ -63,6 +63,23 @@ inline constexpr uint32_t kRadioVolume     = 0x00B5FCC8u; // game.cpp:1102
 inline constexpr int kD3DResetSlot   = 16;
 inline constexpr int kD3DPresentSlot = 17;
 
+// --- Vehicle ProcessControl (crossref docs/re/legacy_gta_sa_address_crossref) ---
+inline constexpr uint32_t kAutoProcCtrl   = 0x006B1880u;
+inline constexpr uint32_t kBoatProcCtrl   = 0x006F1770u;
+inline constexpr uint32_t kBikeProcCtrl   = 0x006B9250u;
+inline constexpr uint32_t kPlaneProcCtrl  = 0x006C9260u;
+inline constexpr uint32_t kHeliProcCtrl   = 0x006C7050u;
+inline constexpr uint32_t kBmxProcCtrl    = 0x006BFA30u;
+inline constexpr uint32_t kTruckProcCtrl  = 0x006C8250u;
+inline constexpr uint32_t kQuadProcCtrl   = 0x006CDCC0u;
+inline constexpr uint32_t kTrainProcCtrl  = 0x006F86A0u;
+inline constexpr uint32_t kAutoVtbl       = 0x00871120u;
+inline constexpr uint32_t kBoatVtbl       = 0x008721A0u;
+inline constexpr uint32_t kTrainDerailCall = 0x006F8CF8u;
+// --- Vehicle audio ---
+inline constexpr uint32_t kVehAudioProc   = 0x00501E10u;
+inline constexpr uint32_t kPlayerDriver   = 0x00B6B990u;
+
 // Helper: read/write only meaningful on x86 GTA process.
 template <typename T>
 inline T* X86Ptr(uint32_t absAddr) {

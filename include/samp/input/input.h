@@ -12,7 +12,11 @@
 // Reference commands (cmdprocs.cpp:1546-1582): quit,q,save,rs,rcon,mem,
 // pagesize,timestamp,hudscalefix,headmove,disvehico,testdw,vsel,v,vehicle,
 // player_skin,set_weather,set_time,interior,cmpstat,dl,onfoot_correct,
-// incar_correct,inacc_multiplier,fpslimit,audiomsg (+ debug-only set).
+// incar_correct,inacc_multiplier,fpslimit,audiomsg (+ _DEBUG-only set).
+// libsamp legacy_client_commands doc adds: unconditional += nametagstatus,
+// togobjlight,ctd,logurls; debug gate (+0x69246) for
+// vsel/v/vehicle/player_skin/set_weather/set_time; RCON via packet 0xC9;
+// save via +0x68A00/+0x68B80.
 namespace samp { namespace input {
 void PollChatKeys();   // FUN_10005f40
 void Frame();          // FUN_100751b0

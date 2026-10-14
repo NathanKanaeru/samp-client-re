@@ -3,6 +3,12 @@
 #include <cstdio>
 #include <cassert>
 #include <cstring>
+#ifdef _WIN32
+#ifndef WIN32_LEAN_AND_MEAN
+#define WIN32_LEAN_AND_MEAN
+#endif
+#include <winsock2.h>
+#endif
 #include "samp/common.h"
 #include "samp/net/bitstream.h"
 #include "samp/net/packets.h"
@@ -17,6 +23,12 @@
 #include "samp/util/config.h"
 #include "samp/util/string_utils.h"
 #include "samp/util/crash.h"
+#include "samp/core/saa.h"
+#include "samp/net/endpoint.h"
+#include "samp/net/socket_compat.h"
+#include "samp/net/bootstrap.h"
+#include "samp/net/raknet_adapter.h"
+#include <vector>
 
 int main() {
   using namespace samp;
@@ -77,6 +89,104 @@ int main() {
 
   std::string c = util::FormatCrash(nullptr, kVersion);
   assert(c.find("SA-MP") != std::string::npos);
+
+  // endpoint parsing (SPEC-NET-002 rules)
+  {
+    net::Endpoint ep;
+    assert(net::ParseHostPort("example.com:7777", 7777, &ep) == 0);
+    assert(strcmp(ep.host, "example.com") == 0 && ep.port == 7777);
+    assert(net::ParseHostPort("203.0.113.10", 7777, &ep) == 0 && ep.port == 7777);
+    assert(net::ParseHostPort("[2001:db8::10]:7777", 80, &ep) == 0 && ep.port == 7777);
+    assert(net::ParseHostPort("2001:db8::10", 7777, &ep) == 0 && ep.port == 7777);
+    assert(net::ParseHostPort("[2001:db8::10", 7777, &ep) == -1);
+    assert(net::ParseHostPort("example.com:", 7777, &ep) == -1);
+    assert(net::ParseHostPort(":7777", 7777, &ep) == -1);
+    assert(net::ParseHostPort("example.com:99999", 7777, &ep) == -1);
+    assert(net::ParseHostPort("", 7777, &ep) == -1);
+  }
+
+  // SAA hash vectors (libsamp test_saa.c anchors)
+  assert(core::SaaHashFilename("main.scm") == core::saa::kHashMainScm);
+  assert(core::SaaHashFilename("SCRIPT.IMG") == core::saa::kHashScriptImg);
+  assert(core::SaaHashFilename("main.scm ") != core::saa::kHashMainScm); // no trim
+  {
+    uint32_t h = 0;
+    assert(core::SaaHashPath("data\\script\\MAIN.SCM", &h) && h == core::saa::kHashMainScm);
+    assert(core::SaaHashPath("data/script/script.img", &h) && h == core::saa::kHashScriptImg);
+  }
+
+  // SAA layout on the real samp.saa (../../samp.saa from build dir); skip if absent.
+  {
+    FILE* f = nullptr;
+    fopen_s(&f, "..\\..\\samp.saa", "rb");
+    if (f) {
+      fseek(f, 0, SEEK_END);
+      long sz = ftell(f);
+      fseek(f, 0, SEEK_SET);
+      std::vector<uint8_t> data((size_t)sz);
+      assert(fread(data.data(), 1, (size_t)sz, f) == (size_t)sz);
+      fclose(f);
+      core::SaaLayout lay;
+      assert(core::SaaParseLayout(data.data(), data.size(), &lay));
+      assert(lay.header_size == 256 && lay.signature_size == 128);
+      printf("[saa] real samp.saa: size=%ld entry_off=%zu sig_off=%zu invalid=%u\n",
+             sz, lay.entry_offset, lay.signature_offset, lay.invalid_index);
+      // Decrypt table + find/extract (keys documented in saa.cpp).
+      std::vector<uint8_t> table(data.begin() + (ptrdiff_t)lay.entry_offset,
+                                 data.begin() + (ptrdiff_t)lay.entry_offset + 2048);
+      core::SaaDecryptTable(table.data());
+      for (const char* name : {"main.scm", "script.img"}) {
+        uint32_t h = core::SaaHashFilename(name);
+        core::SaaFilePos fp;
+        if (core::SaaFind(table.data(), lay.invalid_index, lay.header_size,
+                          lay.entry_offset, h, &fp)) {
+          std::vector<uint8_t> payload(fp.size);
+          assert(core::SaaExtract(data.data(), table.data(), fp, payload.data()));
+          printf("[saa] found %s: size=%u off=%zu magic=%02x%02x%02x%02x\n", name,
+                 fp.size, fp.data_offset, payload[0], payload[1], payload[2], payload[3]);
+        } else {
+          printf("[saa] %s not in this archive (DL-R1 set differs from R5)\n", name);
+        }
+      }
+    } else {
+      printf("[saa] samp.saa not found, layout test skipped\n");
+    }
+  }
+
+  // sockets: Winsock init, UDP loopback self-send, bootstrap lifecycle.
+  {
+    WSADATA wd{};
+    assert(WSAStartup(MAKEWORD(2, 2), &wd) == 0);
+    net::Socket s = net::kInvalidSocket;
+    assert(net::UdpBind(0, nullptr, true, &s) == 0);
+    uint16_t port = 0;
+    assert(net::GetsockPort(s, &port) == 0 && port != 0);
+    uint32_t lo = 0;
+    assert(net::ResolveFirst("localhost", &lo) == 0);
+    const char* hello = "samp-loopback";
+    int err = 0;
+    assert(net::UdpSendTo(s, hello, strlen(hello), lo, port, &err) > 0);
+    char buf[64] = {};
+    size_t got = 0;
+    int tri = -2;
+    for (int i = 0; i < 100 && tri == -2; ++i) {
+      tri = net::UdpRecvFrom(s, buf, sizeof buf, &got, nullptr, nullptr);
+      if (tri == 0) Sleep(10);
+    }
+    assert(tri == 1 && got == strlen(hello) && memcmp(buf, hello, got) == 0);
+    net::CloseSocket(s);
+
+    net::BootstrapManager bm;
+    assert(net::BootstrapInit(&bm) == 0 && bm.initialized);
+    assert(net::BootstrapInit(&bm) == 0); // idempotent
+    assert(net::BootstrapStartListener(&bm, 0, 0) == 0 && bm.running);
+    assert(net::BootstrapStartListener(&bm, 0, 0) == -1); // duplicate reject
+    assert(net::BootstrapStop(&bm) == 0 && !bm.running);
+    assert(net::BootstrapStop(&bm) == 0); // idempotent
+    assert(net::BootstrapDestroy(&bm) == 0 && !bm.initialized);
+    assert(net::RakAdapterAvailable() == false); // no submodule yet
+    WSACleanup();
+  }
 
   printf("samp_smoke: all %s checks passed\n", kVersion);
   return 0;
