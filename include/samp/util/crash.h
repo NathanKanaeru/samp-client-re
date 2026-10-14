@@ -8,4 +8,13 @@
 namespace samp { namespace util {
 std::string FormatCrash(EXCEPTION_POINTERS* info, const char* version);
 void ReportCrash(uint32_t faultAddr);
+// Full original-shape report (REA string @0x1011b610): version header,
+// fault/base addresses, 8 registers + EFLAGS, stack words. Pure + tested.
+struct CrashRegs {
+  uint32_t eip = 0, base = 0;
+  uint32_t eax = 0, ebx = 0, ecx = 0, edx = 0;
+  uint32_t esi = 0, edi = 0, ebp = 0, esp = 0, eflags = 0;
+};
+std::string FormatCrashFull(const CrashRegs& r, const char* version,
+                            const uint32_t* stack, size_t stackWords);
 }} // namespace

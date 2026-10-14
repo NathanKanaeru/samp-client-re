@@ -3,6 +3,8 @@
 #include <cstdio>
 #include <cassert>
 #include <cstring>
+#include <string>
+#include <vector>
 #ifdef _WIN32
 #ifndef WIN32_LEAN_AND_MEAN
 #define WIN32_LEAN_AND_MEAN
@@ -44,6 +46,7 @@
 #include "samp/net/raknet_adapter.h"
 #include "samp/net/sync.h"
 #include "samp/net/query.h"
+#include "samp/net/join.h"
 #include <vector>
 
 int main() {
@@ -513,6 +516,67 @@ int main() {
     assert(net::ParseDetailReply(det.data(), det.size(), pls));
     assert(pls.size() == 1 && pls[0].id == 5 && pls[0].name == "Bob");
     assert(pls[0].score == 10 && pls[0].ping == 20);
+  }
+
+  // interop golden vectors from REAL RakNet (temp clone, MIT-hygiene: facts only)
+  // RakNet wrote: WriteCompressed(-1,1,0,0.5) + Write(2.0f) + 3 units.
+  {
+    const uint8_t golden[18] = {0x00, 0x00, 0xFF, 0xFF, 0xFF, 0x7F, 0xFF, 0xBF,
+                                0x00, 0x00, 0x00, 0x40, 0xFF, 0xBF, 0xFF, 0x7F, 0xFF, 0x3F};
+    net::BitStream ours;
+    ours.WriteCompressedUnit(-1.0f);
+    ours.WriteCompressedUnit(1.0f);
+    ours.WriteCompressedUnit(0.0f);
+    ours.WriteCompressedUnit(0.5f);
+    float two = 2.0f;
+    ours.WriteBytes(&two, 4);
+    ours.WriteCompressedUnit(0.5f);
+    ours.WriteCompressedUnit(0.0f);
+    ours.WriteCompressedUnit(-0.5f);
+    assert(ours.BitsUsed() == 18u * 8u);
+    assert(memcmp(ours.Data(), golden, 18) == 0); // byte-identical to RakNet
+    net::BitStream rd;
+    rd.SetData(golden, 18, true);
+    float v = 0;
+    assert(rd.ReadCompressedUnit(v) && v == -1.0f);
+    assert(rd.ReadCompressedUnit(v) && v > 0.999f && v < 1.001f);
+    assert(rd.ReadCompressedUnit(v) && v > -0.001f && v < 0.001f);
+  }
+
+  // ClientJoin 0.3.7-shape exact bytes (netgame.cpp:758-786 reference)
+  {
+    net::BitStream bs;
+    net::BuildClientJoin(bs, "Bob", 0x12345678u, "CID", "1.0-alpha", 0x01);
+    const uint8_t* d = bs.Data();
+    size_t n = bs.BitsUsed() / 8;
+    assert(n == 4u + 1u + 1u + 3u + 4u + 1u + 3u + 1u + 10u);
+    assert(d[0] == 0x92 && d[1] == 0x10 && d[2] == 0 && d[3] == 0); // 4242 LE
+    assert(d[4] == 0x01 && d[5] == 3);                             // mod + nameLen
+    assert(memcmp(d + 6, "Bob", 3) == 0);
+    assert(d[9] == 0x78 && d[10] == 0x56 && d[11] == 0x34 && d[12] == 0x12);
+    assert(d[13] == 3 && memcmp(d + 14, "CID", 3) == 0);
+    assert(d[17] == 10 && memcmp(d + 18, "1.0-alpha", 9) == 0 && d[27] == 0);
+  }
+
+  // crash full original shape (@0x1011b610)
+  {
+    util::CrashRegs r;
+    r.eip = 0x10001234; r.base = 0x10000000; r.eax = 1; r.esp = 0x10FF00;
+    uint32_t st[2] = {0xAAAAAAAAu, 0xBBBBBBBBu};
+    std::string s = util::FormatCrashFull(r, "0.3.DL-R1", st, 2);
+    assert(s.find("Exception At Address: 0x10001234") != std::string::npos);
+    assert(s.find("EAX: 0x00000001") != std::string::npos);
+    assert(s.find("0xAAAAAAAA") != std::string::npos);
+  }
+
+  // config: case-insensitive, caps, parse text
+  {
+    util::ClearCfg();
+    util::ParseCfgText("# comment\nFontSize = 2\nfontsize=5\n新key=1\n");
+    assert(util::GetCfgInt("FONTSIZE", 0) == 5); // last wins, any case
+    for (int i = 0; i < 40; ++i) util::SetCfg("k" + std::to_string(i), "v");
+    util::SetCfg("fontsize", "9"); // existing key still writable when full
+    assert(util::GetCfgInt("fontsize", 0) == 9);
   }
 
   printf("samp_smoke: all %s checks passed\n", kVersion);
