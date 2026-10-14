@@ -36,6 +36,9 @@
 #include "samp/game/models.h"
 #include "samp/game/spawn.h"
 #include "samp/game/slots.h"
+#include "samp/gui/textdraw_pool.h"
+#include "samp/gui/bubbles.h"
+#include "samp/util/pacer.h"
 #include "samp/gui/fonts.h"
 #include "samp/util/config.h"
 #include "samp/util/string_utils.h"
@@ -645,6 +648,71 @@ int main() {
     net::CloseSocket(tx);
     net::CloseSocket(rx);
     WSACleanup();
+  }
+
+  // extended sync routes (207/203/209/211)
+  {
+    net::CNetGame g;
+    uint8_t onf[18] = {};
+    onf[4] = 0x34; onf[5] = 0x12; // keys 0x1234
+    float ox = 5.0f;
+    memcpy(onf + 6, &ox, 4);
+    assert(g.RouteSync(207, onf, sizeof onf));
+    assert(g.lastFrames().hasOnFoot && g.lastFrames().keys == 0x1234);
+    assert(g.lastFrames().x == 5.0f);
+    assert(!g.RouteSync(207, onf, 10)); // too short
+    net::BitStream ab;
+    net::AimSync a2;
+    a2.camMode = 7; a2.aimZ = 1.25f;
+    net::EncodeAim(ab, a2);
+    std::vector<uint8_t> av(ab.BitsUsed() / 8);
+    memcpy(av.data(), ab.Data(), av.size());
+    assert(g.RouteSync(203, av.data(), av.size()));
+    assert(g.lastFrames().hasAim && g.lastFrames().camMode == 7);
+    assert(g.lastFrames().aimZ == 1.25f);
+    uint8_t px[14] = {};
+    assert(g.RouteSync(209, px, sizeof px));
+    assert(g.RouteSync(211, px, sizeof px));
+    assert(!g.RouteSync(209, px, 3));
+    assert(g.syncCount(207) == 2 && g.syncCount(203) == 1);
+  }
+
+  // textdraw pool (2304) + bubbles (200x144)
+  {
+    gui::TextDrawPool& tp = gui::TextDraws();
+    int id = tp.AllocId();
+    assert(id >= 0);
+    assert(tp.SetText((uint32_t)id, "hello", 5));
+    assert(!tp.SetText((uint32_t)id, "x", 0x2000)); // size guard
+    assert(tp.Show(id) && tp.Shown() == 1);
+    assert(tp.Hide(id) && tp.Shown() == 0);
+    assert(tp.Free(id) && !tp.Free(id));
+    gui::ChatBubbles bb;
+    assert(bb.Set(3, std::string(200, 'z'), 1000));
+    assert(bb.Get(3) && bb.Get(3)->text.size() == 144); // truncated
+    assert(bb.Active() == 1);
+    bb.Expire(1000 + 4999, 5000);
+    assert(bb.Active() == 1);
+    bb.Expire(1000 + 5000, 5000);
+    assert(bb.Active() == 0 && bb.Get(3) == nullptr);
+    assert(!bb.Set(500, "x", 0)); // out of range
+  }
+
+  // class navigator debounce + frame pacer
+  {
+    game::ClassNavigator nav;
+    nav.SetCount(3);
+    assert(nav.Next(100) && nav.Current() == 1);
+    assert(!nav.Next(200)); // debounced
+    assert(nav.Next(100 + 250) && nav.Current() == 2);
+    assert(nav.Prev(1000) && nav.Current() == 1);
+    util::FramePacer fp;
+    fp.SetFps(90);
+    assert(fp.FrameMs() == 11u);
+    uint32_t last = 0;
+    assert(fp.Due(1000, last));
+    assert(!fp.Due(1005, last));
+    assert(fp.Due(1011, last));
   }
 
   printf("samp_smoke: all %s checks passed\n", kVersion);

@@ -37,6 +37,16 @@ public:
   // the buffer is too short for the claimed ID.
   bool RouteSync(uint8_t id, const uint8_t* data, size_t len);
   uint32_t syncCount(uint8_t id) const { return syncCount_[id]; }
+  // Last validated onfoot/aim frames (207/203), for HUD/debug. Zeroed init.
+  struct LastFrames {
+    bool hasOnFoot = false;
+    uint16_t keys = 0;
+    float x = 0, y = 0, z = 0;
+    bool hasAim = false;
+    uint8_t camMode = 0;
+    float aimZ = 0;
+  };
+  const LastFrames& lastFrames() const { return last_; }
   // Transport accounting for the F5 overlay (libsamp format_transport_statistics
   // shape: rates + totals). Pure + tested.
   struct NetStats {
@@ -58,6 +68,7 @@ private:
   uint32_t challenge_ = 0; // server challenge, xor NETGAME_VERSION on join
   uint32_t syncCount_[256] = {};
   NetStats stats_;
+  LastFrames last_;
 };
 
 }} // namespace

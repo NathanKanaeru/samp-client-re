@@ -11,10 +11,9 @@ namespace samp { namespace gui {
 
 static Dialog g_dlg;
 static Scoreboard g_sb;
-static TextDrawPool g_td;
 Dialog& GetDialog() { return g_dlg; }
 Scoreboard& GetScoreboard() { return g_sb; }
-TextDrawPool& TextDraws() { return g_td; }
+// TextDrawPool + TextDraws() live in textdraw_pool.cpp now.
 
 bool Dialog::InitFonts(void*) { return true; } // 5x D3DXCreateFontA + sprite
 void Dialog::ShowHelp() { // FUN_1006b570 text @0x1011c498
@@ -23,12 +22,6 @@ void Dialog::ShowHelp() { // FUN_1006b570 text @0x1011c498
 void Dialog::Render() {}
 bool Scoreboard::Init(void*) { return true; }
 void Scoreboard::Render() {}
-bool TextDrawPool::Init(void*) { return true; }
-bool TextDrawPool::SetText(uint32_t id, const char* t, uint32_t size) {
-  (void)id; (void)t;
-  if (size > 0x1000) { printf("Warning: ignoring large TextDraw size=%u\n", size); return false; }
-  return true;
-}
 
 int FontSizeFor(int base, int delta) { return base + delta * 2; } // FUN_100c6950
 int FontWeightFor(int cfg) { return cfg == 0 ? 700 : (cfg == 1 ? 400 : 700); } // FUN_100c6a00

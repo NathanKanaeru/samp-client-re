@@ -36,4 +36,22 @@ bool SpawnManager::Spawn(const SpawnEvents& ev) {
   return true;
 }
 
+bool ClassNavigator::Next(uint32_t nowMs) {
+  if (count_ <= 0) return false;
+  if (moved_ && nowMs - lastTick_ < kDebounceMs) return false;
+  cur_ = (cur_ + 1) % count_;
+  lastTick_ = nowMs;
+  moved_ = true;
+  return true;
+}
+
+bool ClassNavigator::Prev(uint32_t nowMs) {
+  if (count_ <= 0) return false;
+  if (moved_ && nowMs - lastTick_ < kDebounceMs) return false;
+  cur_ = (cur_ - 1 + count_) % count_;
+  lastTick_ = nowMs;
+  moved_ = true;
+  return true;
+}
+
 }} // namespace

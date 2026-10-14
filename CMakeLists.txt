@@ -61,6 +61,7 @@ set(SAMP_SOURCES
   src/gui/dialog_state.cpp
   src/gui/scoreboard.cpp
   src/gui/textdraw.cpp
+  src/gui/textdraw_pool.cpp
   src/gui/fonts.cpp
   src/gui/screenshot.cpp
   src/audio/audio.cpp

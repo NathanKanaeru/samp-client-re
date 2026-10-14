@@ -61,4 +61,20 @@ private:
   SpawnState state_ = SpawnState::Idle;
 };
 
+// Class-selection navigator with input debounce (reference
+// m_dwLastSpawnSelectionTick delays left/right selection).
+class ClassNavigator {
+public:
+  static constexpr uint32_t kDebounceMs = 250;
+  void SetCount(int n) { count_ = n < 0 ? 0 : n; cur_ = 0; lastTick_ = 0; moved_ = false; }
+  int Current() const { return cur_; }
+  // Returns true when the selection actually moved.
+  bool Next(uint32_t nowMs);
+  bool Prev(uint32_t nowMs);
+private:
+  int count_ = 0, cur_ = 0;
+  uint32_t lastTick_ = 0;
+  bool moved_ = false; // first move always allowed
+};
+
 }} // namespace

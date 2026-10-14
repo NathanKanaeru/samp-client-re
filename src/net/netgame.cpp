@@ -3,6 +3,7 @@
 #include "samp/net/netgame.h"
 #include "samp/net/packets.h"
 #include "samp/net/bitstream.h"
+#include "samp/net/sync.h"
 #include "samp/net/limits.h"
 #include "samp/game/pools.h"
 #include "samp/game/vehicle.h"
@@ -105,8 +106,9 @@ std::string CNetGame::FormatStats(const NetStats& s) {
 bool CNetGame::RouteSync(uint8_t id, const uint8_t* data, size_t len) {
   ++syncCount_[id];
   NoteRecv(len);
+  if (!data) return false;
   if (id == (uint8_t)SampPacketId::VehicleSync) { // 200, FUN_1000a6f0 counterpart
-    if (len < 2u + 3u * sizeof(float) || !data) return false;
+    if (len < 2u + 3u * sizeof(float)) return false;
     uint16_t vid = (uint16_t)(data[0] | (data[1] << 8));
     float x, y, z;
     memcpy(&x, data + 2, 4); memcpy(&y, data + 6, 4); memcpy(&z, data + 10, 4);
@@ -121,6 +123,31 @@ bool CNetGame::RouteSync(uint8_t id, const uint8_t* data, size_t len) {
       slot->pos[0] = blended[0]; slot->pos[1] = blended[1]; slot->pos[2] = blended[2];
     }
     return true;
+  }
+  if (id == (uint8_t)SampPacketId::PlayerSync) { // 207: minimal keys+pos
+    if (len < 3u * 2u + 3u * sizeof(float)) return false;
+    last_.hasOnFoot = true;
+    last_.keys = (uint16_t)(data[4] | (data[5] << 8));
+    memcpy(&last_.x, data + 6, 4);
+    memcpy(&last_.y, data + 10, 4);
+    memcpy(&last_.z, data + 14, 4);
+    return true;
+  }
+  if (id == (uint8_t)SampPacketId::AimSync) { // 203: full 31-byte AIM struct
+    if (len < 31u) return false;
+    BitStream bs(data, len, true);
+    AimSync a;
+    // NOTE: timestamped packets carry id at [5]; caller strips it.
+    if (!DecodeAim(bs, a)) return false;
+    last_.hasAim = true;
+    last_.camMode = a.camMode;
+    last_.aimZ = a.aimZ;
+    return true;
+  }
+  if (id == (uint8_t)SampPacketId::PassengerSync || // 209 (minimal vehId+xyz)
+      id == (uint8_t)SampPacketId::TrailerSync) {   // 211 (same minimal shape)
+    if (len < 2u + 3u * sizeof(float)) return false;
+    return true; // validated + counted; pool blend follows vehicle path later
   }
   return true; // counted; other IDs' struct parse is TODO(rea)
 }
