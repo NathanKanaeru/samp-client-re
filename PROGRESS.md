@@ -4,7 +4,7 @@
 > modul selesai, temuan REA baru, build/test status berubah). Lihat `AGENTS.md`.
 > Format baris history: `| YYYY-MM-DD | area | +/-x% | alasan singkat |`.
 
-## Overall: 88% ✅ buildable (x64) · smoke PASS · interop+join+cfg
+## Overall: 88% ✅ buildable (x64) · smoke PASS · pools+loopback (area naik)
 
 ```
 [█████████████████████░░░] 88%
@@ -14,13 +14,13 @@
 |---|---|---|---|
 | 01 | Identitas & inventaris REA (10) | 100% | PE x86, SHA `bccdb297…`, 6293 proc / 4265 str, import map, versi `0.3.DL-R1` — `docs/REVERSE_NOTES.md` |
 | 02 | Core: DllMain/archive/hooks/exception/version (20) | 84% | +`LOADER.md` (UPX unpack 414K→1.1M, imports/strings injeksi) + loader CLI penuh `-c -h -p -n [-z]`; sisa: RSA-verify, `LAB_*` boundaries |
-| 03 | Net: packets/BitStream/NetGame/RakPeer/RPC (20) | 96% | +interop byte-identical vs RakNet asli +ClientJoin exact +query; sisa: adapter drain + wire live |
-| 04 | Game: manager/pools/patches (15) | 82% | +`SpawnManager` FSM (class/request/reply/spawn order 2,1,0) teruji; sisa: patch runtime x86 |
+| 03 | Net: packets/BitStream/NetGame/RakPeer/RPC (20) | 97% | +pipeline UDP loopback end-to-end +NetStats F5 teruji; sisa: adapter drain + wire live |
+| 04 | Game: manager/pools/patches (15) | 86% | +SlotPool generik +gang/label/pickup/menu pool teruji; sisa: patch runtime x86 |
 | 05 | GUI/D3D: hook/chat/dialog/score/textdraw/fonts/shot (15) | 83% | +`Dialog` penuh (style 0-5, caption 64, tab-parse, select) teruji; sisa: uji D3D nyata |
 | 06 | Audio/Input/Util/Loader (10) | 90% | +config typed (lowercase/30/40) +crash full original-shape; sisa: unpack exact-alloc, runtime GTA |
 | 07 | Build & tes (10) | 78% | +CI job mingw-x86; x86 lokal TERBUKTI terblokir (cc1 i386 gagal, didok di AGENTS.md); sisa: injeksi nyata |
 
-Perhitungan: `(10×1.00 + 20×0.84 + 20×0.96 + 15×0.82 + 15×0.83 + 10×0.90 + 10×0.78)/100 = 87.55 → 88%`.
+Perhitungan: `(10×1.00 + 20×0.84 + 20×0.97 + 15×0.86 + 15×0.83 + 10×0.90 + 10×0.78)/100 = 88.35 → 88%`.
 
 ## Definisi % per area
 
@@ -43,6 +43,7 @@ Perhitungan: `(10×1.00 + 20×0.84 + 20×0.96 + 15×0.82 + 15×0.83 + 10×0.90 +
 | 2026-10-14 | game+gui | SpawnManager FSM + Dialog penuh + test; build+smoke PASS | 86% |
 | 2026-10-14 | net | Clone Knogle/RakNet (verifikasi format) + sync codec + query protocol + test; build+smoke PASS | 87% |
 | 2026-10-14 | net+util | Interop RakNet byte-identical + ClientJoin exact + crash full + config typed; build+smoke PASS | 88% |
+| 2026-10-14 | game+net | SlotPool 4 pool + pipeline loopback + NetStats; build+smoke PASS | 88% |
 
 ## Next (untuk naik %)
 

@@ -7,6 +7,7 @@
 // NETGAME_VERSION (4242), send RPC_ClientJoin(version 4242, mod 0x01,
 // nick, challenge^version, GPCI computer id, version string).
 #include <cstdint>
+#include <string>
 #include "samp/net/rakpeer.h"
 
 namespace samp { namespace net {
@@ -36,6 +37,16 @@ public:
   // the buffer is too short for the claimed ID.
   bool RouteSync(uint8_t id, const uint8_t* data, size_t len);
   uint32_t syncCount(uint8_t id) const { return syncCount_[id]; }
+  // Transport accounting for the F5 overlay (libsamp format_transport_statistics
+  // shape: rates + totals). Pure + tested.
+  struct NetStats {
+    uint64_t upBytes = 0, downBytes = 0;
+    uint32_t upPackets = 0, downPackets = 0;
+  };
+  const NetStats& stats() const { return stats_; }
+  void NoteSent(size_t n) { stats_.upBytes += n; ++stats_.upPackets; }
+  void NoteRecv(size_t n) { stats_.downBytes += n; ++stats_.downPackets; }
+  static std::string FormatStats(const NetStats& s);
 private:
   RakPeerWrapper peer_;
   char     host_[64] = {};
@@ -46,6 +57,7 @@ private:
   uint32_t lastTick_ = 0;
   uint32_t challenge_ = 0; // server challenge, xor NETGAME_VERSION on join
   uint32_t syncCount_[256] = {};
+  NetStats stats_;
 };
 
 }} // namespace

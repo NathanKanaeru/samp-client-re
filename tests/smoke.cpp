@@ -35,6 +35,7 @@
 #include "samp/audio/audio.h"
 #include "samp/game/models.h"
 #include "samp/game/spawn.h"
+#include "samp/game/slots.h"
 #include "samp/gui/fonts.h"
 #include "samp/util/config.h"
 #include "samp/util/string_utils.h"
@@ -519,7 +520,6 @@ int main() {
   }
 
   // interop golden vectors from REAL RakNet (temp clone, MIT-hygiene: facts only)
-  // RakNet wrote: WriteCompressed(-1,1,0,0.5) + Write(2.0f) + 3 units.
   {
     const uint8_t golden[18] = {0x00, 0x00, 0xFF, 0xFF, 0xFF, 0x7F, 0xFF, 0xBF,
                                 0x00, 0x00, 0x00, 0x40, 0xFF, 0xBF, 0xFF, 0x7F, 0xFF, 0x3F};
@@ -577,6 +577,74 @@ int main() {
     for (int i = 0; i < 40; ++i) util::SetCfg("k" + std::to_string(i), "v");
     util::SetCfg("fontsize", "9"); // existing key still writable when full
     assert(util::GetCfgInt("fontsize", 0) == 9);
+  }
+
+  // slot pools (caps per limits.h)
+  {
+    static_assert(game::GangZonePool::kCap == 1024, "gz");
+    static_assert(game::LabelPool::kCap == 2048, "labels");
+    static_assert(game::PickupPool::kCap == 400, "pickups");
+    static_assert(game::MenuPool::kCap == 128, "menus");
+    game::GangZonePool gz;
+    int a = gz.Alloc(), b = gz.Alloc();
+    assert(a == 0 && b == 1 && gz.Count() == 2);
+    gz.Get(a)->color = 0xFF0000;
+    assert(gz.Free(a) && !gz.Free(a) && gz.Count() == 1 && gz.Get(a) == nullptr);
+    game::LabelPool lb;
+    int l = lb.Alloc();
+    assert(l == 0);
+    lb.Get(l)->text = "base";
+    assert(lb.Get(l)->text == "base");
+    game::PickupPool pk;
+    assert(pk.Alloc() == 0 && pk.Count() == 1);
+    game::MenuPool mn;
+    int m = mn.Alloc();
+    assert(m == 0);
+    mn.Get(m)->title = "Weapons";
+    mn.Get(m)->items[0] = "Desert Eagle";
+    mn.Get(m)->itemCount = 1;
+    assert(mn.Get(m)->itemCount == 1);
+  }
+
+  // end-to-end sync pipeline over real UDP loopback (no server needed)
+  {
+    WSADATA wd{};
+    assert(WSAStartup(MAKEWORD(2, 2), &wd) == 0);
+    net::Socket tx = net::kInvalidSocket, rx = net::kInvalidSocket;
+    assert(net::UdpBind(0, nullptr, true, &tx) == 0);
+    assert(net::UdpBind(0, nullptr, true, &rx) == 0);
+    uint16_t rxPort = 0;
+    assert(net::GetsockPort(rx, &rxPort) == 0);
+    uint32_t lo = 0;
+    assert(net::ResolveFirst("localhost", &lo) == 0);
+    assert(game::Vehicles().Create(21, 411, 0, 0, 0, 0));
+    uint8_t wire[14] = {};
+    wire[0] = 21;
+    float tx3[3] = {30.0f, 0, 0};
+    memcpy(wire + 2, tx3, 12);
+    net::CNetGame g;
+    int err = 0;
+    assert(net::UdpSendTo(tx, wire, sizeof wire, lo, rxPort, &err) == (long)sizeof wire);
+    g.NoteSent(sizeof wire);
+    uint8_t got[64] = {};
+    size_t gotN = 0;
+    int tri = -2;
+    for (int i = 0; i < 200 && tri != 1; ++i) {
+      tri = net::UdpRecvFrom(rx, got, sizeof got, &gotN, nullptr, nullptr);
+      if (tri == 0) Sleep(5);
+    }
+    assert(tri == 1 && gotN == sizeof wire);
+    assert(g.RouteSync(200, got, gotN));
+    auto* v = game::Vehicles().Get(21);
+    assert(v && v->pos[0] == 30.0f); // snapped through the real socket path
+    assert(g.syncCount(200) == 1);
+    std::string fs = net::CNetGame::FormatStats(g.stats());
+    assert(fs.find("Up: 1 pkts") != std::string::npos);
+    assert(fs.find("Down: 1 pkts") != std::string::npos);
+    game::DeleteVehicle(21);
+    net::CloseSocket(tx);
+    net::CloseSocket(rx);
+    WSACleanup();
   }
 
   printf("samp_smoke: all %s checks passed\n", kVersion);

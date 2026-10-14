@@ -95,8 +95,16 @@ void CNetGame::Pump() { // FUN_1000b290
   else DispatchIncoming();
 }
 
+std::string CNetGame::FormatStats(const NetStats& s) {
+  char b[160];
+  snprintf(b, sizeof b, "Up: %u pkts %llu B | Down: %u pkts %llu B",
+           s.upPackets, s.upBytes, s.downPackets, s.downBytes);
+  return b;
+}
+
 bool CNetGame::RouteSync(uint8_t id, const uint8_t* data, size_t len) {
   ++syncCount_[id];
+  NoteRecv(len);
   if (id == (uint8_t)SampPacketId::VehicleSync) { // 200, FUN_1000a6f0 counterpart
     if (len < 2u + 3u * sizeof(float) || !data) return false;
     uint16_t vid = (uint16_t)(data[0] | (data[1] << 8));
