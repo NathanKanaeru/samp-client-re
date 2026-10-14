@@ -28,6 +28,9 @@
 #include "samp/net/death_codec.h"
 #include "samp/net/compressed_vector.h"
 #include "samp/input/cmd_window.h"
+#include "samp/input/wndproc.h"
+#include "samp/audio/audio.h"
+#include "samp/game/models.h"
 #include "samp/gui/fonts.h"
 #include "samp/util/config.h"
 #include "samp/util/string_utils.h"
@@ -209,6 +212,60 @@ int main() {
     std::vector<gui::Scoreboard::Row> rows = {{"b", 5, 50}, {"a", 5, 30}, {"c", 9, 10}};
     gui::Scoreboard::SortRows(rows);
     assert(rows[0].name == "c" && rows[1].name == "a" && rows[2].name == "b");
+  }
+
+  // audio: volume law + meta parse + tick
+  {
+    assert(audio::VolumeFor(-1, 60, 1.0f) == 8000); // 2D
+    assert(audio::VolumeFor(30, 60, 1.0f) == 4000); // linear half
+    assert(audio::VolumeFor(60, 60, 0.5f) == 0);    // out of range
+    assert(audio::VolumeFor(0, 60, 0.5f) == 4000);
+    assert(audio::ParseMetaTitle("StreamTitle='Cool FM';", "") == "Cool FM");
+    assert(audio::ParseMetaTitle("artist=DJ", "artist=") == "DJ");
+    assert(audio::ParseMetaTitle("nothing", "") == "");
+    audio::StreamState st;
+    st.playing = true; st.maxDist = -1; st.lastTick = 0;
+    audio::TickCtx ctx;
+    ctx.nowMs = 200; ctx.radioVol = 0.5f;
+    assert(audio::ProcessTick(st, ctx) == 4000);
+    ctx.menuOpen = true;
+    assert(audio::ProcessTick(st, ctx) == 0);
+  }
+
+  // wndproc router (subclass.cpp flow)
+  {
+    input::WndState s;
+    assert(input::RouteMessage(s, {input::Msg::KeyUp, input::VK_F6_})); // open cmd
+    assert(s.cmdActive && s.chatMode);
+    assert(input::RouteMessage(s, {input::Msg::KeyUp, 0x09})); // TAB score
+    assert(s.scoreVisible);
+    assert(!input::RouteMessage(s, {input::Msg::KeyDown, 0x41})); // passthrough
+    assert(input::RouteMessage(s, {input::Msg::KeyUp, input::VK_ESC_})); // ESC closes cmd first
+    assert(!s.cmdActive && s.scoreVisible); // score still up
+    assert(input::RouteMessage(s, {input::Msg::Char, input::VK_ESC_})); // ESC hides score
+    assert(!s.scoreVisible);
+    assert(!input::RouteMessage(s, {input::Msg::KeyUp, input::VK_F8_})); // flag set, msg continues to GTA
+    assert(s.takeScreenshot);
+    assert(input::RouteMessage(s, {input::Msg::SetCursor, 0})); // swallowed
+    s.scoreVisible = true;
+    assert(input::RouteMessage(s, {input::Msg::LButtonDown, 0, false})); // outside click
+    assert(!s.scoreVisible && s.outsideScoreboard);
+    assert(input::RouteMessage(s, {input::Msg::SysKeyUp, input::VK_RET_})); // windowed toggle
+    input::WndState c;
+    assert(input::RouteMessage(c, {input::Msg::Char, 't'})); // quick-talk opens cmd
+    assert(c.cmdActive);
+  }
+
+  // DL-R1 model queue
+  {
+    game::ModelQueue q;
+    assert(q.Request(0x1234));
+    assert(!q.Request(0x1234)); // dup
+    assert(q.MarkDownloading(0x1234));
+    assert(q.MarkReady(0x1234));
+    assert(q.Find(0x1234)->dff == game::ModelReqState::Ready);
+    assert(game::DffName("samp", 0xAB) == "samp/0xAB.dff");
+    assert(game::TxdName("samp", 0xAB) == "samp/0xAB.txd");
   }
   util::SetCfg("fontsize", "2");
   assert(util::GetCfgInt("fontsize", 0) == 2);

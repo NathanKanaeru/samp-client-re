@@ -44,6 +44,7 @@ set(SAMP_SOURCES
   src/net/raknet_adapter.cpp
   src/game/game.cpp
   src/game/pools.cpp
+  src/game/models.cpp
   src/game/player.cpp
   src/game/vehicle.cpp
   src/game/gta_patches.cpp
@@ -60,6 +61,7 @@ set(SAMP_SOURCES
   src/gui/screenshot.cpp
   src/audio/audio.cpp
   src/input/input.cpp
+  src/input/wndproc.cpp
   src/input/cmd_window.cpp
   src/util/config.cpp
   src/util/crash.cpp
