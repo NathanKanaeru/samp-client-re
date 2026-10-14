@@ -34,6 +34,7 @@ Perhitungan: `(10×1.00 + 20×0.65 + 20×0.55 + 15×0.50 + 15×0.55 + 10×0.60 +
 | Tanggal | Area | Perubahan | Overall |
 |---|---|---|---|
 | 2026-10-14 | semua | Baseline: REA 5 agen → 57 file source, CMake x64 build OK, smoke PASS | 62% |
+| 2026-10-14 | docs | Repo GitHub dibuat + push awal (`NathanKanaeru/samp-client-re`, public): AGENTS.md, PROGRESS.md, .gitignore | 62% |
 
 ## Next (untuk naik %)
 
