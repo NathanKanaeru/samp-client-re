@@ -36,6 +36,7 @@
 #include "samp/game/models.h"
 #include "samp/game/spawn.h"
 #include "samp/game/slots.h"
+#include "samp/game/world.h"
 #include "samp/gui/textdraw_pool.h"
 #include "samp/gui/bubbles.h"
 #include "samp/util/pacer.h"
@@ -52,6 +53,7 @@
 #include "samp/net/query.h"
 #include "samp/net/join.h"
 #include "samp/net/menu_rpc.h"
+#include "samp/net/visual_rpc.h"
 #include "samp/net/rcon.h"
 #include "samp/net/rpc_dispatch.h"
 #include <vector>
@@ -833,6 +835,101 @@ int main() {
     assert(rs.reply == "line1" && !rs.Expired(2999) && rs.Expired(3000));
     auto lines = net::SplitReplyLines("a\r\nb\nc");
     assert(lines.size() == 3 && lines[0] == "a" && lines[1] == "b" && lines[2] == "c");
+  }
+
+  // actor/object/icon pools
+  {
+    static_assert(game::ActorPool::kCap == 1000, "actors");
+    static_assert(game::ObjectPool::kCap == 255, "objects");
+    game::ActorPool ap;
+    int a = ap.Alloc();
+    assert(a == 0);
+    ap.Get(a)->model = 7;
+    ap.Get(a)->health = 50;
+    assert(ap.Get(a)->health == 50 && ap.Count() == 1);
+    assert(ap.Free(a) && ap.Count() == 0);
+    game::ObjectPool op;
+    int o = op.Alloc();
+    assert(o == 0);
+    op.Get(o)->model = 1337;
+    op.Get(o)->moving = true;
+    op.Get(o)->tx = 10;
+    assert(op.Get(o)->tx == 10);
+    game::IconPool ip;
+    int ic = ip.Alloc();
+    assert(ic == 0);
+    ip.Get(ic)->type = 5;
+    assert(ip.Get(ic)->type == 5);
+  }
+
+  // visual RPC builders
+  {
+    net::TextDrawDesc d;
+    d.id = 12; d.x = 100; d.y = 200; d.text = "Hi"; d.style = 2;
+    net::BitStream bs;
+    net::BuildShowTextDraw(bs, d);
+    assert(bs.BitsUsed() == (2u + 4u + 4u + 2u + 2u + 4u + 1u + 4u + 4u) * 8u);
+    assert(bs.Data()[0] == 12 && bs.Data()[1] == 0);
+    net::BitStream bh;
+    net::BuildHideTextDraw(bh, 12);
+    assert(bh.BitsUsed() == 16u);
+    net::BitStream bf;
+    net::BuildFlashGangZone(bf, 3, 0xFF0000u);
+    assert(bf.BitsUsed() == (2u + 4u) * 8u);
+    assert(bf.Data()[2] == 0 && bf.Data()[3] == 0 && bf.Data()[4] == 0xFF);
+    net::BitStream ba;
+    net::BuildAddGangZone(ba, 0, 0, 10, 10, 1, 2);
+    assert(ba.BitsUsed() == (16u + 4u + 4u) * 8u);
+  }
+
+  // query protocol over real UDP loopback (framing check, not a live server)
+  {
+    WSADATA wd{};
+    assert(WSAStartup(MAKEWORD(2, 2), &wd) == 0);
+    net::Socket srv = net::kInvalidSocket, cli = net::kInvalidSocket;
+    assert(net::UdpBind(0, nullptr, true, &srv) == 0);
+    assert(net::UdpBind(0, nullptr, true, &cli) == 0);
+    uint16_t srvPort = 0;
+    assert(net::GetsockPort(srv, &srvPort) == 0);
+    uint32_t lo = 0;
+    assert(net::ResolveFirst("localhost", &lo) == 0);
+    // client -> server: 'p' ping query
+    std::vector<uint8_t> q;
+    net::BuildQuery('p', 0x7F000001u, srvPort, q);
+    int err = 0;
+    assert(net::UdpSendTo(cli, q.data(), q.size(), lo, srvPort, &err) == (long)q.size());
+    // server side: receive + validate framing, answer canned 'i' reply
+    uint8_t rbuf[64] = {};
+    size_t rn = 0;
+    int tri = -2;
+    for (int i = 0; i < 200 && tri != 1; ++i) {
+      tri = net::UdpRecvFrom(srv, rbuf, sizeof rbuf, &rn, nullptr, nullptr);
+      if (tri == 0) Sleep(5);
+    }
+    assert(tri == 1 && rn == q.size() && memcmp(rbuf, "SAMP", 4) == 0 && rbuf[10] == 'p');
+    std::vector<uint8_t> rep = {'S', 'A', 'M', 'P', 'i', 1, 2, 0, 32, 0};
+    auto push = [&](const char* s) {
+      uint32_t n = (uint32_t)strlen(s);
+      rep.push_back((uint8_t)n); rep.push_back(0); rep.push_back(0); rep.push_back(0);
+      rep.insert(rep.end(), s, s + n);
+    };
+    push("Srv"); push("GM"); push("EN");
+    // Self-delivery framing check: reply to our own port, read back, parse.
+    assert(net::UdpSendTo(srv, rep.data(), rep.size(), lo, srvPort, &err) == (long)rep.size());
+    uint8_t cbuf[128] = {};
+    size_t cn = 0;
+    tri = -2;
+    for (int i = 0; i < 200 && tri != 1; ++i) {
+      tri = net::UdpRecvFrom(srv, cbuf, sizeof cbuf, &cn, nullptr, nullptr);
+      if (tri == 0) Sleep(5);
+    }
+    assert(tri == 1);
+    net::QueryInfo info;
+    assert(net::ParseInfoReply(cbuf, cn, info));
+    assert(info.locked && info.players == 2 && info.hostname == "Srv");
+    net::CloseSocket(cli);
+    net::CloseSocket(srv);
+    WSACleanup();
   }
 
   printf("samp_smoke: all %s checks passed\n", kVersion);
