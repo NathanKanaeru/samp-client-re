@@ -46,11 +46,38 @@ struct InCarSync {
   uint8_t info = 0;
 };
 
+struct PassengerSync {
+  uint16_t vehicle = 0;
+  uint8_t seats = 0;      // seatFlags:7
+  uint8_t driveBy = 0;    // :1
+  uint8_t weapon = 0, health = 100, armour = 0;
+  uint16_t lr = 0, ud = 0, keys = 0;
+  float px = 0, py = 0, pz = 0;
+};
+
+struct SpectatorSync {
+  uint16_t lr = 0, ud = 0, keys = 0;
+  float px = 0, py = 0, pz = 0;
+};
+
+struct TrailerSync {
+  float roll[3] = {};                 // compressed unit norm vectors
+  float dir[3] = {};
+  float px = 0, py = 0, pz = 0;
+  float mx = 0, my = 0, mz = 0;
+};
+
 void EncodeOnFoot(BitStream& bs, const OnFootSync& s);
 bool DecodeOnFoot(BitStream& bs, OnFootSync& s);
 void EncodeAim(BitStream& bs, const AimSync& s);
 bool DecodeAim(BitStream& bs, AimSync& s);
 void EncodeInCar(BitStream& bs, const InCarSync& s);
 bool DecodeInCar(BitStream& bs, InCarSync& s);
+void EncodePassenger(BitStream& bs, const PassengerSync& s);
+bool DecodePassenger(BitStream& bs, PassengerSync& s);
+void EncodeSpectator(BitStream& bs, const SpectatorSync& s);
+bool DecodeSpectator(BitStream& bs, SpectatorSync& s);
+void EncodeTrailer(BitStream& bs, const TrailerSync& s);
+bool DecodeTrailer(BitStream& bs, TrailerSync& s);
 
 }} // namespace

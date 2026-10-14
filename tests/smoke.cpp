@@ -51,6 +51,9 @@
 #include "samp/net/sync.h"
 #include "samp/net/query.h"
 #include "samp/net/join.h"
+#include "samp/net/menu_rpc.h"
+#include "samp/net/rcon.h"
+#include "samp/net/rpc_dispatch.h"
 #include <vector>
 
 int main() {
@@ -713,6 +716,123 @@ int main() {
     assert(fp.Due(1000, last));
     assert(!fp.Due(1005, last));
     assert(fp.Due(1011, last));
+  }
+
+  // passenger/spectator/trailer codecs round-trip
+  {
+    net::PassengerSync p;
+    p.vehicle = 9; p.seats = 5; p.driveBy = 1; p.weapon = 29; p.px = 3.0f;
+    net::BitStream bs;
+    net::EncodePassenger(bs, p);
+    net::BitStream rd;
+    rd.SetData(bs.Data(), bs.BitsUsed() / 8, true);
+    net::PassengerSync p2;
+    assert(net::DecodePassenger(rd, p2));
+    assert(p2.vehicle == 9 && p2.seats == 5 && p2.driveBy == 1);
+    assert(p2.weapon == 29 && p2.px == 3.0f);
+
+    net::SpectatorSync s;
+    s.keys = 0x10; s.pz = -2.0f;
+    net::BitStream bs2;
+    net::EncodeSpectator(bs2, s);
+    net::BitStream rd2;
+    rd2.SetData(bs2.Data(), bs2.BitsUsed() / 8, true);
+    net::SpectatorSync s2;
+    assert(net::DecodeSpectator(rd2, s2));
+    assert(s2.keys == 0x10 && s2.pz == -2.0f);
+
+    net::TrailerSync t;
+    t.dir[1] = 1.0f; t.px = 7.0f; t.mz = -1.0f;
+    net::BitStream bs3;
+    net::EncodeTrailer(bs3, t);
+    net::BitStream rd3;
+    rd3.SetData(bs3.Data(), bs3.BitsUsed() / 8, true);
+    net::TrailerSync t2;
+    assert(net::DecodeTrailer(rd3, t2));
+    assert(t2.dir[1] > 0.999f && t2.px == 7.0f && t2.mz == -1.0f);
+  }
+
+  // RPC dispatch with recording callbacks
+  {
+    static std::string gotChat;
+    static std::string gotDeath;
+    net::RpcDispatcher disp;
+    disp.RegisterBuiltins();
+    net::WorldState w;
+    net::RpcCtx ctx;
+    ctx.world = &w;
+    ctx.chat = (void*)1;
+    ctx.chatAdd = [](void*, const char* t, int) { gotChat = t; };
+    ctx.deaths = (void*)2;
+    ctx.deathAdd = [](void*, const char* a, const char*, int) { gotDeath = a; };
+    net::BitStream bc;
+    bc.WriteU8(5); bc.WriteBytes("hello", 5);
+    net::BitStream rc;
+    rc.SetData(bc.Data(), bc.BitsUsed() / 8, true);
+    assert(disp.Dispatch(21, rc, ctx) && gotChat == "hello");
+    net::BitStream bw;
+    bw.WriteU8(20); bw.WriteU8(30);
+    net::BitStream rw;
+    rw.SetData(bw.Data(), bw.BitsUsed() / 8, true);
+    assert(disp.Dispatch(13, rw, ctx) && w.hour == 20 && w.minute == 30);
+    net::BitStream bd;
+    uint8_t draw[5] = {1, 0, 2, 0, 31};
+    bd.WriteBytes(draw, 5);
+    net::BitStream rd;
+    rd.SetData(bd.Data(), 5, true);
+    assert(disp.Dispatch(32, rd, ctx) && gotDeath == "player1");
+    net::BitStream be;
+    assert(!disp.Dispatch(99, be, ctx)); // unknown
+    assert(disp.handled() == 3 && disp.unhandled() == 1);
+  }
+
+  // scoreboard update + chat slice/timestamp + menu responses
+  {
+    gui::Scoreboard sb;
+    std::string names[3] = {"b", "a", "c"};
+    int scores[3] = {5, 5, 9};
+    int pings[3] = {50, 30, 10};
+    assert(sb.UpdateList(names, scores, pings, 3));
+    assert(sb.rows()[0].name == "c" && sb.rows()[1].name == "a");
+    assert(!sb.UpdateList(nullptr, scores, pings, 3));
+
+    gui::ChatWindow cw2;
+    cw2.SetPageSize(2);
+    cw2.AddMessage("one", 1);
+    cw2.AddMessage("two", 1);
+    cw2.AddMessage("three", 1);
+    auto vis = cw2.VisibleSlice(0);
+    assert(vis.size() == 2 && vis[0] == "two" && vis[1] == "three");
+    auto vis1 = cw2.VisibleSlice(1);
+    assert(vis1.size() == 2 && vis1[0] == "one" && vis1[1] == "two");
+    cw2.SetTimestamp(true);
+    auto vist = cw2.VisibleSlice(0);
+    assert(vist[0] == "[12:00] two");
+    assert(gui::ChatWindow::WithTimestamp("x", 3, 7) == "[03:07] x");
+
+    net::BitStream ms;
+    net::BuildMenuSelect(ms, 4, 2);
+    assert(ms.BitsUsed() == 16u && ms.Data()[0] == 4 && ms.Data()[1] == 2);
+    net::BitStream mq;
+    net::BuildMenuQuit(mq, 4);
+    assert(mq.BitsUsed() == 8u && mq.Data()[0] == 4);
+  }
+
+  // RCON session
+  {
+    net::RconSession rs;
+    assert(!rs.Enqueue(""));
+    for (int i = 0; i < net::RconSession::kMaxQueue; ++i)
+      assert(rs.Enqueue("cmd" + std::to_string(i)));
+    assert(!rs.Enqueue("overflow"));
+    std::string cmd;
+    assert(rs.NextToSend(cmd) && cmd == "cmd0");
+    rs.MarkSent(1000);
+    rs.OnReplyLine("line1", 1500);
+    rs.OnReplyLine("late", 1000 + 2000); // window edge: dropped
+    assert(rs.reply == "line1" && !rs.Expired(2999) && rs.Expired(3000));
+    auto lines = net::SplitReplyLines("a\r\nb\nc");
+    assert(lines.size() == 3 && lines[0] == "a" && lines[1] == "b" && lines[2] == "c");
   }
 
   printf("samp_smoke: all %s checks passed\n", kVersion);

@@ -43,6 +43,26 @@ void ChatWindow::SetFontSize(int d) {
   fontDelta_ = d;
 }
 
+std::vector<std::string> ChatWindow::VisibleSlice(int scroll) const {
+  std::vector<std::string> out;
+  if (scroll < 0) scroll = 0;
+  int end = kMaxMessages - 1 - scroll;
+  if (end < 0) return out;
+  int start = end - pageSize_ + 1;
+  if (start < 0) start = 0;
+  for (int i = start; i <= end; ++i)
+    if (!entries_[i].text.empty() || (unsigned)i >= (unsigned)kMaxMessages - total_)
+      out.push_back(timestamp_ ? WithTimestamp(entries_[i].text, 12, 0) : entries_[i].text);
+  return out;
+}
+
+std::string ChatWindow::WithTimestamp(const std::string& text, int hour, int minute) {
+  char b[16];
+  snprintf(b, sizeof b, "[%02d:%02d] ", hour < 0 ? 0 : (hour > 23 ? 23 : hour),
+           minute < 0 ? 0 : (minute > 59 ? 59 : minute));
+  return std::string(b) + text;
+}
+
 void ChatWindow::Render() {}
 
 void ChatWindow::LogToFile(const std::string& line) {

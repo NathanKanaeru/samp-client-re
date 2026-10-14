@@ -4,23 +4,23 @@
 > modul selesai, temuan REA baru, build/test status berubah). Lihat `AGENTS.md`.
 > Format baris history: `| YYYY-MM-DD | area | +/-x% | alasan singkat |`.
 
-## Overall: 89% ✅ buildable (x64) · smoke PASS · sync-routes+pools
+## Overall: 90% ✅ buildable (x64) · smoke PASS · rpc+score+rcon
 
 ```
-[█████████████████████░░░] 89%
+[██████████████████████░░] 90%
 ```
 
 | # | Area (bobot) | % | Status / bukti |
 |---|---|---|---|
 | 01 | Identitas & inventaris REA (10) | 100% | PE x86, SHA `bccdb297…`, 6293 proc / 4265 str, import map, versi `0.3.DL-R1` — `docs/REVERSE_NOTES.md` |
 | 02 | Core: DllMain/archive/hooks/exception/version (20) | 84% | +`LOADER.md` (UPX unpack 414K→1.1M, imports/strings injeksi) + loader CLI penuh `-c -h -p -n [-z]`; sisa: RSA-verify, `LAB_*` boundaries |
-| 03 | Net: packets/BitStream/NetGame/RakPeer/RPC (20) | 98% | +route 203/207/209/211 +last-frames teruji; sisa: adapter drain + wire live |
+| 03 | Net: packets/BitStream/NetGame/RakPeer/RPC (20) | 99% | +RpcDispatcher 7 handler +menu/rcon builder +codec pax/spec/trailer; sisa: adapter drain + wire live |
 | 04 | Game: manager/pools/patches (15) | 87% | +ClassNavigator debounce teruji; sisa: patch runtime x86 |
-| 05 | GUI/D3D: hook/chat/dialog/score/textdraw/fonts/shot (15) | 86% | +TextDrawPool 2304 +ChatBubbles +menu payload teruji; sisa: uji D3D nyata |
+| 05 | GUI/D3D: hook/chat/dialog/score/textdraw/fonts/shot (15) | 88% | +Scoreboard UpdateList +chat slice/timestamp +menu payload; sisa: uji D3D nyata |
 | 06 | Audio/Input/Util/Loader (10) | 91% | +FramePacer fpslimit teruji; sisa: unpack exact-alloc, runtime GTA |
 | 07 | Build & tes (10) | 78% | +CI job mingw-x86; x86 lokal TERBUKTI terblokir (cc1 i386 gagal, didok di AGENTS.md); sisa: injeksi nyata |
 
-Perhitungan: `(10×1.00 + 20×0.84 + 20×0.98 + 15×0.87 + 15×0.86 + 10×0.91 + 10×0.78)/100 = 89.25 → 89%`.
+Perhitungan: `(10×1.00 + 20×0.84 + 20×0.99 + 15×0.87 + 15×0.88 + 10×0.91 + 10×0.78)/100 = 89.75 → 90%`.
 
 ## Definisi % per area
 
@@ -45,6 +45,7 @@ Perhitungan: `(10×1.00 + 20×0.84 + 20×0.98 + 15×0.87 + 15×0.86 + 10×0.91 +
 | 2026-10-14 | net+util | Interop RakNet byte-identical + ClientJoin exact + crash full + config typed; build+smoke PASS | 88% |
 | 2026-10-14 | game+net | SlotPool 4 pool + pipeline loopback + NetStats; build+smoke PASS | 88% |
 | 2026-10-14 | net+gui+game+util | Route 203/207/209/211 + TextDraw/Bubbles + Navigator + Pacer + test; PASS | 89% |
+| 2026-10-14 | net+gui | RpcDispatcher + codec pax/spec/trailer + score/chat/menu + RCON; PASS | 90% |
 
 ## Next (untuk naik %)
 

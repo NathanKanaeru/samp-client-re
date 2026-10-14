@@ -5,6 +5,7 @@
 // Reference (chatwindow.h): MAX_MESSAGE_LENGTH 144, MAX_LINE_LENGTH 72,
 // MAX_MESSAGES 100, DISP_MESSAGES 10 (default page size).
 #include <string>
+#include <vector>
 
 namespace samp { namespace gui {
 
@@ -26,12 +27,18 @@ public:
   void SetFontSize(int delta); // -3..5 ("Valid fontsize: -3 to 5")
   void SetPageSize(int n) { pageSize_ = n < 1 ? 1 : (n > kMaxMessages ? kMaxMessages : n); }
   int PageSize() const { return pageSize_; }
+  void SetTimestamp(bool on) { timestamp_ = on; }
+  // Visible window: newest pageSize entries ending `scroll` lines above latest.
+  std::vector<std::string> VisibleSlice(int scroll) const;
+  // "[HH:MM] text" formatter (pure; hour/minute injected for tests).
+  static std::string WithTimestamp(const std::string& text, int hour, int minute);
   void Render();
   void LogToFile(const std::string& line); // %s\chatlog.txt
   const ChatEntry& Latest() const { return entries_[kMaxMessages - 1]; }
   unsigned Total() const { return total_; }
 private:
   bool directMode_ = false;
+  bool timestamp_ = false;
   int fontDelta_ = 0;
   int pageSize_ = kDispMessages;
   ChatEntry entries_[kMaxMessages];

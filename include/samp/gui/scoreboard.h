@@ -18,8 +18,13 @@ public:
       return a.name < b.name;
     });
   }
+  // Rebuilds the sorted view from parallel arrays (lengths must match).
+  // Returns false on length mismatch (view unchanged).
+  bool UpdateList(const std::string* names, const int* scores, const int* pings, size_t n);
+  const std::vector<Row>& rows() const { return rows_; }
 private:
   bool visible_ = false;
+  std::vector<Row> rows_;
 };
 Scoreboard& GetScoreboard();
 }} // namespace

@@ -22,6 +22,15 @@ void Dialog::ShowHelp() { // FUN_1006b570 text @0x1011c498
 void Dialog::Render() {}
 bool Scoreboard::Init(void*) { return true; }
 void Scoreboard::Render() {}
+bool Scoreboard::UpdateList(const std::string* names, const int* scores, const int* pings, size_t n) {
+  if (!names || !scores || !pings) return false;
+  std::vector<Row> v;
+  v.reserve(n);
+  for (size_t i = 0; i < n; ++i) v.push_back({names[i], scores[i], pings[i]});
+  SortRows(v);
+  rows_ = v;
+  return true;
+}
 
 int FontSizeFor(int base, int delta) { return base + delta * 2; } // FUN_100c6950
 int FontWeightFor(int cfg) { return cfg == 0 ? 700 : (cfg == 1 ? 400 : 700); } // FUN_100c6a00

@@ -38,6 +38,8 @@ set(SAMP_SOURCES
   src/net/rakpeer.cpp
   src/net/netgame.cpp
   src/net/rpc.cpp
+  src/net/rpc_dispatch.cpp
+  src/net/rcon.cpp
   src/net/endpoint.cpp
   src/net/socket_compat.cpp
   src/net/bootstrap.cpp
